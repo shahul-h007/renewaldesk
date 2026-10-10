@@ -361,19 +361,18 @@ CREATE POLICY "Members can view their business" ON public.businesses FOR SELECT 
 DROP POLICY IF EXISTS "Owners and Managers can update their business" ON public.businesses;
 CREATE POLICY "Owners and Managers can update their business" ON public.businesses FOR UPDATE USING (public.is_business_owner_or_manager(id)) WITH CHECK (public.is_business_owner_or_manager(id));
 
--- Business Members (Non-recursive direct policies)
+-- Business Members (Non-recursive direct read policy; direct client writes are DENIED)
 DROP POLICY IF EXISTS "Members can view co-members of their businesses" ON public.business_members;
 DROP POLICY IF EXISTS "Owners can manage business memberships" ON public.business_members;
 DROP POLICY IF EXISTS "Users can view own business memberships" ON public.business_members;
+DROP POLICY IF EXISTS "Users can view own memberships" ON public.business_members;
 DROP POLICY IF EXISTS "Users can insert own business memberships" ON public.business_members;
+DROP POLICY IF EXISTS "Users can update own business memberships" ON public.business_members;
+DROP POLICY IF EXISTS "Business members can view memberships" ON public.business_members;
 
 CREATE POLICY "Users can view own business memberships"
   ON public.business_members FOR SELECT
   USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own business memberships"
-  ON public.business_members FOR INSERT
-  WITH CHECK (user_id = auth.uid());
 
 -- Customers
 DROP POLICY IF EXISTS "Business members can view customers" ON public.customers;

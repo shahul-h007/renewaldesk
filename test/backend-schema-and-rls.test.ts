@@ -113,18 +113,40 @@ assert(reconcileSql.includes('GRANT EXECUTE ON FUNCTION public.create_business_a
 assert(reconcileSql.includes('reload schema'), 'Reconciliation must reload schema cache');
 // Assert business_members does not call is_business_member(business_id) in its own policy
 assert(!reconcileSql.includes('ON public.business_members FOR SELECT\n  USING (public.is_business_member(business_id))'), 'business_members SELECT policy must not recursively call is_business_member');
-console.log('  ✔ Reconciliation migration verified with create_business_and_owner and non-recursive RLS');
+// Assert business_members has NO client INSERT, UPDATE, or DELETE policy in reconciliation
+assert(!reconcileSql.includes('ON public.business_members FOR INSERT'), 'business_members must NOT grant client INSERT permissions');
+assert(!reconcileSql.includes('ON public.business_members FOR UPDATE'), 'business_members must NOT grant client UPDATE permissions');
+assert(!reconcileSql.includes('ON public.business_members FOR DELETE'), 'business_members must NOT grant client DELETE permissions');
+console.log('  ✔ Reconciliation migration verified: non-recursive SELECT only, zero client write permissions');
 
-// 7. Verify Dedicated Recursion Fix Migration
+// 7. Verify Dedicated Recursion Fix Migration Security
 const fixRecursionPath = path.resolve(process.cwd(), 'supabase/migrations/20261010_fix_business_members_recursion.sql');
 assert(fs.existsSync(fixRecursionPath), 'Recursion fix migration file must exist');
 const fixRecursionSql = fs.readFileSync(fixRecursionPath, 'utf8');
 assert(fixRecursionSql.includes('DROP POLICY IF EXISTS "Members can view co-members of their businesses" ON public.business_members;'), 'Must drop recursive policy');
 assert(fixRecursionSql.includes('CREATE POLICY "Users can view own business memberships"'), 'Must create non-recursive policy');
+assert(fixRecursionSql.includes('USING (user_id = auth.uid())'), 'SELECT policy must strictly check user_id = auth.uid()');
+// Verify client writes are strictly denied (no INSERT, UPDATE, DELETE policies)
+assert(!fixRecursionSql.includes('ON public.business_members FOR INSERT'), 'Fix migration must NOT grant client INSERT permissions');
+assert(!fixRecursionSql.includes('ON public.business_members FOR UPDATE'), 'Fix migration must NOT grant client UPDATE permissions');
+assert(!fixRecursionSql.includes('ON public.business_members FOR DELETE'), 'Fix migration must NOT grant client DELETE permissions');
+// Verify atomic onboarding and owner assignment
+assert(fixRecursionSql.includes('CREATE OR REPLACE FUNCTION public.create_business_and_owner'), 'Fix migration must reaffirm create_business_and_owner');
+assert(fixRecursionSql.includes('v_user_id := auth.uid()'), 'create_business_and_owner must require auth.uid()');
+assert(fixRecursionSql.includes("VALUES (v_business_id, v_user_id, 'owner')"), 'create_business_and_owner must assign caller as initial owner');
+// Verify authorized team member procedure
+assert(fixRecursionSql.includes('CREATE OR REPLACE FUNCTION public.add_business_member'), 'Fix migration must define add_business_member');
+assert(fixRecursionSql.includes('public.is_business_owner_or_manager(p_business_id)'), 'add_business_member must require owner/manager authorization');
 assert(fixRecursionSql.includes('reload schema'), 'Must reload PostgREST schema cache');
-console.log('  ✔ Dedicated recursion fix migration verified with direct non-recursive policy');
+console.log('  ✔ Dedicated recursion fix migration verified: strict privilege boundary and zero client write policies');
 
-// 8. Verify Diagnostic Script Integrity
+// 8. Verify Initial Schema Consistency
+assert(!sqlContent.includes('ON public.business_members FOR INSERT'), 'initial_schema must NOT grant client INSERT permissions on business_members');
+assert(!sqlContent.includes('ON public.business_members FOR UPDATE'), 'initial_schema must NOT grant client UPDATE permissions on business_members');
+assert(!sqlContent.includes('ON public.business_members FOR DELETE'), 'initial_schema must NOT grant client DELETE permissions on business_members');
+console.log('  ✔ Initial schema verified: consistent non-recursive SELECT-only policy on business_members');
+
+// 9. Verify Diagnostic Script Integrity
 const diagnosticPath = path.resolve(process.cwd(), 'supabase/diagnostics/audit_schema.sql');
 assert(fs.existsSync(diagnosticPath), 'Diagnostic SQL file must exist');
 const diagSql = fs.readFileSync(diagnosticPath, 'utf8');

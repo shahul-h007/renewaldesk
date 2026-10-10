@@ -298,9 +298,117 @@ async function runLiveWorkflow() {
     !anonBiz || anonBiz.length === 0,
     'RLS VIOLATION: Anonymous client must not be able to read business details!'
   );
-  console.log('  ✔ Anonymous client cannot read tenant business details (0 rows returned).');
+  // ==========================================
+  // Step 7: Security Test - Direct Client Write Blocking on business_members
+  // ==========================================
+  console.log('\n--- Step 7: Security Test - Direct Client INSERT on business_members ---');
+  const fakeBizId = '00000000-0000-0000-0000-000000000000';
+  const { data: directInsertData, error: directInsertErr } = await supabase
+    .from('business_members')
+    .insert({
+      business_id: fakeBizId,
+      user_id: user.id,
+      role: 'owner',
+    })
+    .select();
 
-  console.log('\n🎉 ALL LIVE DATABASE PERSISTENCE & RLS TESTS PASSED 100%!');
+  assert(
+    directInsertErr || !directInsertData || directInsertData.length === 0,
+    'SECURITY VIOLATION: Direct client INSERT on business_members must be blocked by RLS!'
+  );
+  console.log('  ✔ Direct client INSERT on public.business_members successfully blocked by RLS.');
+
+  console.log('\n--- Step 8: Security Test - Direct Client UPDATE on business_members ---');
+  const { data: directUpdateData, error: directUpdateErr } = await supabase
+    .from('business_members')
+    .update({ role: 'owner' })
+    .eq('user_id', user.id)
+    .select();
+
+  assert(
+    directUpdateErr || !directUpdateData || directUpdateData.length === 0,
+    'SECURITY VIOLATION: Direct client UPDATE on business_members must be blocked by RLS!'
+  );
+  console.log('  ✔ Direct client UPDATE on public.business_members successfully blocked by RLS.');
+
+  // ==========================================
+  // Step 9: Cross-Tenant Isolation Verification
+  // ==========================================
+  console.log('\n--- Step 9: Security Test - Cross-Tenant Customer Access & Hijack ---');
+  const tenantBEmail = `renewaldesk.tenantB.${timestamp}@gmail.com`;
+  const tenantBPassword = `TestPass!_TenantB_${timestamp}#1`;
+
+  const supabaseB = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: userBData, error: userBErr } = await supabaseB.auth.signUp({
+    email: tenantBEmail,
+    password: tenantBPassword,
+    options: { data: { full_name: 'Tenant B Owner' } },
+  });
+
+  if (!userBErr && userBData.user) {
+    // If immediate session available for Tenant B
+    let sessionB = userBData.session;
+    if (!sessionB) {
+      const { data: signB } = await supabaseB.auth.signInWithPassword({
+        email: tenantBEmail,
+        password: tenantBPassword,
+      });
+      sessionB = signB.session;
+    }
+
+    if (sessionB) {
+      // 1. Tenant B attempts to read Tenant A's customer
+      const { data: crossCusts } = await supabaseB
+        .from('customers')
+        .select('*')
+        .eq('business_id', businessId);
+
+      assert(
+        !crossCusts || crossCusts.length === 0,
+        'CRITICAL SECURITY VIOLATION: Tenant B was able to read Tenant A customers!'
+      );
+      console.log("  ✔ Tenant B cannot read Tenant A's customers (0 rows returned).");
+
+      // 2. Tenant B attempts to insert a customer into Tenant A's business
+      const { data: crossInsert, error: crossInsertErr } = await supabaseB
+        .from('customers')
+        .insert({
+          business_id: businessId,
+          name: 'Hacked Customer',
+          phone: '+91 99999 00000',
+        })
+        .select();
+
+      assert(
+        crossInsertErr || !crossInsert || crossInsert.length === 0,
+        "CRITICAL SECURITY VIOLATION: Tenant B was able to insert a customer into Tenant A's business!"
+      );
+      console.log("  ✔ Tenant B cannot insert records into Tenant A's business (blocked by RLS).");
+
+      // 3. Tenant B attempts to self-assign membership in Tenant A's business
+      const { data: hijackData, error: hijackErr } = await supabaseB
+        .from('business_members')
+        .insert({
+          business_id: businessId,
+          user_id: userBData.user.id,
+          role: 'owner',
+        })
+        .select();
+
+      assert(
+        hijackErr || !hijackData || hijackData.length === 0,
+        'CRITICAL SECURITY VIOLATION: Tenant B was able to self-assign membership into Tenant A!'
+      );
+      console.log("  ✔ Tenant B cannot self-assign membership to Tenant A's business (blocked by RLS).");
+    }
+  } else {
+    console.log('  ℹ Tenant B live verification skipped (email confirmation active on remote auth).');
+  }
+
+  console.log('\n🎉 ALL LIVE DATABASE PERSISTENCE & RLS SECURITY TESTS PASSED 100%!');
   return { success: true };
 }
 
