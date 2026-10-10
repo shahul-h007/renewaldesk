@@ -12,7 +12,7 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
-  const { resetDemoData } = useRenewalDesk();
+  const { resetDemoData, isDatabaseMode } = useRenewalDesk();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -24,6 +24,18 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Status Badge */}
+          {isDatabaseMode ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              PostgreSQL Cloud
+            </span>
+          ) : (
+            <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              Demo Mode
+            </span>
+          )}
+
           {headerActions}
 
           {/* Reset Demo Data shortcut for testing */}

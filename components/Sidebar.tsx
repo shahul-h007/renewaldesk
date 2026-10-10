@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import {
   LayoutDashboard,
   Users,
@@ -14,11 +15,16 @@ import {
   Wrench,
   RotateCw,
   Sparkles,
+  LogOut,
+  LogIn,
+  Database,
+  Cloud,
 } from 'lucide-react';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { services, business } = useRenewalDesk();
+  const { services, business, isDatabaseMode } = useRenewalDesk();
+  const { user, signOut } = useAuth();
 
   // Calculate live count of Overdue items needing urgent attention
   const overdueCount = services.filter(s => s.urgency === 'OVERDUE' && s.followUpStatus !== 'COMPLETED').length;
@@ -99,13 +105,44 @@ export function Sidebar() {
       </div>
 
       {/* Logged-in Business Footer Card */}
-      <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-          KC
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-gray-900 truncate">{business.name}</p>
-          <p className="text-[11px] text-gray-500 truncate">{business.city} • Owner</p>
+      <div className="p-3 border-t border-gray-100 bg-gray-50/70">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+              {business.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-gray-900 truncate">{business.name}</p>
+              <div className="flex items-center gap-1 text-[10px]">
+                {isDatabaseMode ? (
+                  <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
+                    <Cloud className="w-3 h-3 text-emerald-500" />
+                    Supabase
+                  </span>
+                ) : (
+                  <span className="text-gray-400 font-medium">Demo Mode</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {user ? (
+            <button
+              onClick={() => signOut()}
+              title="Sign Out"
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              title="Sign in with your business account"
+              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
       </div>
     </aside>

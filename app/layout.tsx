@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AuthProvider } from '@/lib/auth-context';
 import { RenewalDeskProvider } from '@/lib/store';
 
 export const metadata: Metadata = {
@@ -15,9 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased font-sans">
-        <RenewalDeskProvider>
-          {children}
-        </RenewalDeskProvider>
+        <AuthProvider>
+          <RenewalDeskProvider>
+            {children}
+          </RenewalDeskProvider>
+        </AuthProvider>
       </body>
     </html>
   );
