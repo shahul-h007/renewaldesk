@@ -8,11 +8,21 @@ import { WhatsAppTemplate } from '@/lib/types';
 import { Save, Check, Smartphone } from 'lucide-react';
 import { IPhone17ProMockup } from '@/components/IPhone17ProMockup';
 
+const DEFAULT_SAMPLE_CUSTOMER = {
+  id: 'sample',
+  name: 'Arun Kumar',
+  phone: '+91 98471 23456',
+  asset_name: 'Samsung Split AC (1.5 Ton)',
+  service_name: 'AC Periodic General Service',
+  due_date: '10 Oct 2026',
+};
+
 export default function TemplatesPage() {
-  const { templates, updateTemplate, business } = useRenewalDesk();
+  const { templates, updateTemplate, business, customers, assets, services } = useRenewalDesk();
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templates[0]?.id || 'tpl-overdue');
   const [editedText, setEditedText] = useState<string>(templates[0]?.templateText || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('sample');
 
   const activeTemplate = templates.find(t => t.id === activeTemplateId) || templates[0];
 
@@ -36,14 +46,46 @@ export default function TemplatesPage() {
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
-  const livePreview = interpolateTemplate(editedText, {
-    customer_name: 'Arun Kumar',
-    service_name: 'AC Periodic General Service',
-    asset_name: 'Samsung Split AC (1.5 Ton)',
-    due_date: '10 Oct 2026',
-    business_name: business.name,
-    phone: business.phone,
-  });
+  // Resolve preview customer data
+  const isSample = selectedCustomerId === 'sample';
+  const isEmptyState = selectedCustomerId === 'none';
+
+  const selectedCustomer = !isSample && !isEmptyState
+    ? customers.find(c => c.id === selectedCustomerId)
+    : null;
+
+  const activeCustomerName = isSample
+    ? DEFAULT_SAMPLE_CUSTOMER.name
+    : selectedCustomer
+    ? selectedCustomer.name
+    : null;
+
+  const activeCustomerPhone = isSample
+    ? DEFAULT_SAMPLE_CUSTOMER.phone
+    : selectedCustomer
+    ? selectedCustomer.phone
+    : null;
+
+  const customerAsset = selectedCustomer
+    ? assets.find(a => a.customerId === selectedCustomer.id)
+    : null;
+
+  const customerService = selectedCustomer
+    ? services.find(s => s.customerId === selectedCustomer.id)
+    : null;
+
+  const livePreview = activeCustomerName
+    ? interpolateTemplate(editedText, {
+        customer_name: activeCustomerName,
+        service_name: customerService?.serviceName || DEFAULT_SAMPLE_CUSTOMER.service_name,
+        asset_name: customerAsset
+          ? `${customerAsset.name}${customerAsset.capacity ? ` (${customerAsset.capacity})` : ''}`
+          : DEFAULT_SAMPLE_CUSTOMER.asset_name,
+        due_date: customerService?.nextDueDate || DEFAULT_SAMPLE_CUSTOMER.due_date,
+        business_name: business.name,
+        phone: business.phone,
+      })
+    : '';
 
   return (
     <AppShell
@@ -134,22 +176,53 @@ export default function TemplatesPage() {
 
         {/* Right Column: Simulated WhatsApp Device Preview (5 cols) */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
-            <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>Simulated WhatsApp Screen</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>Simulated WhatsApp Screen</span>
+            </div>
+
+            {/* Customer Preview Selector */}
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="preview-customer-select" className="text-[11px] text-gray-500 font-medium">
+                Customer:
+              </label>
+              <select
+                id="preview-customer-select"
+                aria-label="Select preview customer"
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-gray-700 font-medium hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[150px] truncate"
+              >
+                <option value="sample">Sample: {DEFAULT_SAMPLE_CUSTOMER.name}</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="none">None (Empty preview)</option>
+              </select>
+            </div>
           </div>
 
           {/* iPhone 17 Pro Realistic Hardware Mockup */}
           <IPhone17ProMockup
+            customerName={activeCustomerName}
+            customerPhone={activeCustomerPhone}
             businessName={business.name}
             messageText={livePreview}
-            customerName="Arun Kumar"
             timeString="10:14 AM"
             onlineStatus="Online"
           />
 
           <p className="text-[11px] text-center text-gray-400">
-            Preview uses sample customer: <strong>Arun Kumar</strong>
+            {isSample ? (
+              <>Preview uses sample customer: <strong className="text-gray-600">{DEFAULT_SAMPLE_CUSTOMER.name}</strong></>
+            ) : selectedCustomer ? (
+              <>Previewing customer: <strong className="text-gray-600">{selectedCustomer.name}</strong></>
+            ) : (
+              <span>No customer selected for preview</span>
+            )}
           </p>
         </div>
       </div>
