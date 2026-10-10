@@ -12,9 +12,23 @@ interface CompleteServiceModalProps {
   customer?: Customer;
   asset?: Asset;
   service?: ServiceRecord;
+  onComplete?: (
+    serviceId: string,
+    completedDate: string,
+    amount: number,
+    intervalValue: number,
+    intervalUnit: IntervalUnit
+  ) => void;
 }
 
-export function CompleteServiceModal({ isOpen, onClose, customer, asset, service }: CompleteServiceModalProps) {
+export function CompleteServiceModal({
+  isOpen,
+  onClose,
+  customer,
+  asset,
+  service,
+  onComplete,
+}: CompleteServiceModalProps) {
   const { markServiceCompleted, business, catalog } = useRenewalDesk();
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -42,7 +56,11 @@ export function CompleteServiceModal({ isOpen, onClose, customer, asset, service
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    markServiceCompleted(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
+    if (onComplete) {
+      onComplete(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
+    } else {
+      markServiceCompleted(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
+    }
     onClose();
   };
 

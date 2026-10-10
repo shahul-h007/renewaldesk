@@ -32,8 +32,8 @@ interface AuthContextType {
   isConfigured: boolean;
   authError: string | null;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ data?: any; error: Error | null }>;
+  signInWithGoogle: (redirectTo?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   switchBusiness: (businessId: string) => void;
   refreshBusinessContext: () => Promise<void>;
@@ -186,10 +186,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUpWithEmail = async (email: string, password: string, fullName: string) => {
     if (!configured) {
-      return { error: new Error('Supabase is not configured yet. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.') };
+      return { data: null, error: new Error('Supabase is not configured yet. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.') };
     }
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -198,15 +198,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     });
-    return { error: error as Error | null };
+    return { data, error: error as Error | null };
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (targetRedirect?: string) => {
     if (!configured) {
       return { error: new Error('Supabase is not configured yet. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.') };
     }
     const supabase = createClient();
-    const redirectUrl = `${window.location.origin}/auth/callback`;
+    const safeTarget = targetRedirect ? encodeURIComponent(targetRedirect) : '';
+    const redirectUrl = `${window.location.origin}/auth/callback${safeTarget ? `?next=${safeTarget}` : ''}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -227,7 +228,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBusinesses([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('rd_active_biz_id');
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 

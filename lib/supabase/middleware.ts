@@ -3,9 +3,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSupabaseUrl, getSupabaseAnonKey, isSupabaseConfigured } from './config';
 
 /**
- * Refreshes auth sessions and protects routes.
- * If Supabase is not yet configured, gracefully permits navigation
- * so developers and demo users can explore the application without errors.
+ * Validates that a redirect path is internal and safe, preventing open redirect attacks.
+ */
+function isSafeInternalPath(path: string | null): boolean {
+  if (!path) return false;
+  const trimmed = path.trim();
+  return trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.includes('://');
+}
+
+/**
+ * Refreshes auth sessions and protects operational routes.
+ * Ensures unauthenticated visitors cannot access protected business workspaces.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -14,7 +22,33 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  const pathname = request.nextUrl.pathname;
+
+  // Protected operational routes requiring authentication
+  const isProtectedPath = [
+    '/dashboard',
+    '/customers',
+    '/services',
+    '/results',
+    '/templates',
+    '/import',
+    '/settings',
+    '/onboarding',
+  ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+
+  // Auth pages (login, signup, forgot-password)
+  const isAuthPath = ['/login', '/signup', '/forgot-password'].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+
+  // If Supabase is not configured, fail-closed for protected operational paths
   if (!isSupabaseConfigured()) {
+    if (isProtectedPath) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.searchParams.set('setup', 'required');
+      return NextResponse.redirect(redirectUrl);
+    }
     return response;
   }
 
@@ -52,25 +86,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-
-  // Protected operational routes
-  const isProtectedPath = [
-    '/dashboard',
-    '/customers',
-    '/services',
-    '/results',
-    '/templates',
-    '/import',
-    '/settings',
-    '/onboarding',
-  ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
-
-  // Auth pages (login, signup, forgot-password)
-  const isAuthPath = ['/login', '/signup', '/forgot-password'].some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
-  );
-
+  // Redirect unauthenticated user trying to access protected paths
   if (!user && isProtectedPath) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
@@ -78,9 +94,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Redirect authenticated user trying to access login/signup pages
   if (user && isAuthPath) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/dashboard';
+    const rawRedirect = request.nextUrl.searchParams.get('redirectTo');
+    const safeTarget = isSafeInternalPath(rawRedirect) ? rawRedirect! : '/dashboard';
+    const redirectUrl = new URL(safeTarget, request.url);
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -33,3 +33,14 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* Subtle decorative pattern utilities */
+.bg-dot-grid {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-radial-gradient {
+  background: radial-gradient(circle at 50% 10%, rgba(37, 99, 235, 0.07) 0%, rgba(248, 250, 252, 0) 65%);
+}
+

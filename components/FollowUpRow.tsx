@@ -14,9 +14,19 @@ interface FollowUpRowProps {
   service: ServiceRecord;
   customer?: Customer;
   asset?: Asset;
+  onUpdateStatus?: (status: FollowUpStatus) => void;
+  onOpenWhatsApp?: () => void;
+  onOpenComplete?: () => void;
 }
 
-export function FollowUpRow({ service, customer, asset }: FollowUpRowProps) {
+export function FollowUpRow({
+  service,
+  customer,
+  asset,
+  onUpdateStatus,
+  onOpenWhatsApp,
+  onOpenComplete,
+}: FollowUpRowProps) {
   const { updateFollowUpStatus, business } = useRenewalDesk();
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -29,9 +39,17 @@ export function FollowUpRow({ service, customer, asset }: FollowUpRowProps) {
   const handleStatusChange = (status: FollowUpStatus) => {
     setShowMenu(false);
     if (status === 'COMPLETED') {
-      setShowCompleteModal(true);
+      if (onOpenComplete) {
+        onOpenComplete();
+      } else {
+        setShowCompleteModal(true);
+      }
     } else {
-      updateFollowUpStatus(service.id, status);
+      if (onUpdateStatus) {
+        onUpdateStatus(status);
+      } else {
+        updateFollowUpStatus(service.id, status);
+      }
     }
   };
 
@@ -83,7 +101,7 @@ export function FollowUpRow({ service, customer, asset }: FollowUpRowProps) {
         <div className="flex items-center gap-2 sm:justify-end">
           {/* WhatsApp Primary Action */}
           <button
-            onClick={() => setShowWhatsAppModal(true)}
+            onClick={() => (onOpenWhatsApp ? onOpenWhatsApp() : setShowWhatsAppModal(true))}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] shadow-sm transition-all"
             title="Open WhatsApp message preview"
           >
@@ -115,7 +133,7 @@ export function FollowUpRow({ service, customer, asset }: FollowUpRowProps) {
           {/* Complete Service & Reschedule */}
           {service.followUpStatus !== 'COMPLETED' && (
             <button
-              onClick={() => setShowCompleteModal(true)}
+              onClick={() => (onOpenComplete ? onOpenComplete() : setShowCompleteModal(true))}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
               title="Mark service completed and calculate next due date"
             >
@@ -189,22 +207,26 @@ export function FollowUpRow({ service, customer, asset }: FollowUpRowProps) {
       </div>
 
       {/* WhatsApp Modal */}
-      <WhatsAppModal
-        isOpen={showWhatsAppModal}
-        onClose={() => setShowWhatsAppModal(false)}
-        customer={customer}
-        asset={asset}
-        service={service}
-      />
+      {!onOpenWhatsApp && (
+        <WhatsAppModal
+          isOpen={showWhatsAppModal}
+          onClose={() => setShowWhatsAppModal(false)}
+          customer={customer}
+          asset={asset}
+          service={service}
+        />
+      )}
 
       {/* Complete Service Dialog */}
-      <CompleteServiceModal
-        isOpen={showCompleteModal}
-        onClose={() => setShowCompleteModal(false)}
-        customer={customer}
-        asset={asset}
-        service={service}
-      />
+      {!onOpenComplete && (
+        <CompleteServiceModal
+          isOpen={showCompleteModal}
+          onClose={() => setShowCompleteModal(false)}
+          customer={customer}
+          asset={asset}
+          service={service}
+        />
+      )}
     </>
   );
 }
