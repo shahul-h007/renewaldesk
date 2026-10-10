@@ -101,8 +101,24 @@ for (const table of tenantTables) {
     policyRegex.test(sqlContent),
     `Table 'public.${table}' must have at least one RLS policy declared`
   );
-  console.log(`  ✔ RLS access control policies declared for 'public.${table}'`);
 }
+
+// 6. Verify Reconciliation Migration Integrity
+const reconcilePath = path.resolve(process.cwd(), 'supabase/migrations/20261010_reconcile_existing_project.sql');
+assert(fs.existsSync(reconcilePath), 'Reconciliation migration file must exist');
+const reconcileSql = fs.readFileSync(reconcilePath, 'utf8');
+
+assert(reconcileSql.includes('CREATE OR REPLACE FUNCTION public.create_business_and_owner'), 'Reconciliation must define create_business_and_owner');
+assert(reconcileSql.includes('GRANT EXECUTE ON FUNCTION public.create_business_and_owner'), 'Reconciliation must grant execute permission');
+assert(reconcileSql.includes('reload schema'), 'Reconciliation must reload schema cache');
+console.log('  ✔ Reconciliation migration verified with create_business_and_owner and schema reload');
+
+// 7. Verify Diagnostic Script Integrity
+const diagnosticPath = path.resolve(process.cwd(), 'supabase/diagnostics/audit_schema.sql');
+assert(fs.existsSync(diagnosticPath), 'Diagnostic SQL file must exist');
+const diagSql = fs.readFileSync(diagnosticPath, 'utf8');
+assert(!diagSql.includes('DELETE FROM') && !diagSql.includes('DROP TABLE'), 'Diagnostic script must be strictly read-only');
+console.log('  ✔ Diagnostic SQL script verified as strictly read-only');
 
 // ==========================================
 // Suite 2: Data Access Layer & Type Mappers

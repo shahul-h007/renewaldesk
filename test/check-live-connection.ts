@@ -82,6 +82,17 @@ async function checkLiveStatus() {
     console.log(`  - public.${table}: ${status}`);
   }
 
+  // Check RPC function
+  console.log('\n⚙ Checking RPC Functions:');
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('create_business_and_owner', {
+    p_name: 'Probe Test',
+  });
+  if (rpcErr) {
+    console.log(`  - rpc('create_business_and_owner'): CODE=${rpcErr.code}, MSG=${rpcErr.message}`);
+  } else {
+    console.log(`  - rpc('create_business_and_owner'): EXISTS and responded.`);
+  }
+
   console.log('\nSummary:');
   console.log(`  Existing Tables: ${tablesFound} / ${tables.length}`);
   console.log(`  Missing Tables:  ${tablesMissing} / ${tables.length}`);

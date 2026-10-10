@@ -515,3 +515,15 @@ CREATE POLICY "Business members can view activities"
 CREATE POLICY "Business members can insert activities"
   ON public.activities FOR INSERT
   WITH CHECK (public.is_business_member(business_id));
+
+
+-- ==============================================================================
+-- EXECUTION GRANTS & SCHEMA CACHE RELOAD
+-- ==============================================================================
+REVOKE ALL ON FUNCTION public.create_business_and_owner(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_business_and_owner(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_business_member(UUID) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.is_business_owner_or_manager(UUID) TO authenticated, anon;
+
+NOTIFY pgrst, 'reload schema';
+
