@@ -327,13 +327,97 @@ BEGIN
 END;
 $$;
 
--- 7. EXECUTION GRANTS
+-- 7. AUTHORIZED TEAM MEMBER INVITATION PROCEDURE (Strict Privilege Hierarchy)
+CREATE OR REPLACE FUNCTION public.add_business_member(
+  p_business_id UUID,
+  p_user_email TEXT,
+  p_role TEXT DEFAULT 'staff'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_caller_id UUID;
+  v_caller_role TEXT;
+  v_target_user_id UUID;
+  v_new_member public.business_members%ROWTYPE;
+BEGIN
+  -- 1. Require authenticated caller
+  v_caller_id := auth.uid();
+  IF v_caller_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- 2. Validate requested role parameter
+  IF p_role IS NULL OR p_role NOT IN ('owner', 'manager', 'staff') THEN
+    RAISE EXCEPTION 'Invalid role: must be owner, manager, or staff';
+  END IF;
+
+  -- 3. Query caller's actual membership role in this business directly from database
+  SELECT role INTO v_caller_role
+  FROM public.business_members
+  WHERE business_id = p_business_id
+    AND user_id = v_caller_id;
+
+  IF v_caller_role IS NULL THEN
+    RAISE EXCEPTION 'Not authorized: you are not a member of this business';
+  END IF;
+
+  -- 4. Enforce strict role hierarchy and escalation prevention
+  IF v_caller_role = 'staff' THEN
+    RAISE EXCEPTION 'Not authorized: staff members cannot invite team members';
+  ELSIF v_caller_role = 'manager' THEN
+    -- Managers may only invite staff members
+    IF p_role <> 'staff' THEN
+      RAISE EXCEPTION 'Not authorized: managers can only invite staff members';
+    END IF;
+  ELSIF v_caller_role = 'owner' THEN
+    -- Owners are authorized to invite any valid role
+    NULL;
+  ELSE
+    RAISE EXCEPTION 'Not authorized: unknown membership role';
+  END IF;
+
+  -- 5. Look up target user by email in profiles
+  SELECT id INTO v_target_user_id
+  FROM public.profiles
+  WHERE lower(email) = lower(trim(p_user_email));
+
+  IF v_target_user_id IS NULL THEN
+    RAISE EXCEPTION 'User with email % not found in profiles', trim(p_user_email);
+  END IF;
+
+  -- 6. Check if target user is already a member (no silent role overwrites)
+  IF EXISTS (
+    SELECT 1 FROM public.business_members
+    WHERE business_id = p_business_id
+      AND user_id = v_target_user_id
+  ) THEN
+    RAISE EXCEPTION 'User is already a member of this business';
+  END IF;
+
+  -- 7. Insert the new membership atomically
+  INSERT INTO public.business_members (business_id, user_id, role)
+  VALUES (p_business_id, v_target_user_id, p_role)
+  RETURNING * INTO v_new_member;
+
+  RETURN to_jsonb(v_new_member);
+END;
+$$;
+
+-- 8. EXECUTION GRANTS
 REVOKE ALL ON FUNCTION public.create_business_and_owner(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_business_and_owner(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.add_business_member(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.add_business_member(UUID, TEXT, TEXT) TO authenticated;
+
 GRANT EXECUTE ON FUNCTION public.is_business_member(UUID) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.is_business_owner_or_manager(UUID) TO authenticated, anon;
 
--- 8. ROW LEVEL SECURITY (RLS) ENABLEMENT
+-- 9. ROW LEVEL SECURITY (RLS) ENABLEMENT
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_members ENABLE ROW LEVEL SECURITY;

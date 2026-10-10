@@ -134,11 +134,32 @@ assert(!fixRecursionSql.includes('ON public.business_members FOR DELETE'), 'Fix 
 assert(fixRecursionSql.includes('CREATE OR REPLACE FUNCTION public.create_business_and_owner'), 'Fix migration must reaffirm create_business_and_owner');
 assert(fixRecursionSql.includes('v_user_id := auth.uid()'), 'create_business_and_owner must require auth.uid()');
 assert(fixRecursionSql.includes("VALUES (v_business_id, v_user_id, 'owner')"), 'create_business_and_owner must assign caller as initial owner');
-// Verify authorized team member procedure
+// Verify authorized team member procedure with strict privilege hierarchy
 assert(fixRecursionSql.includes('CREATE OR REPLACE FUNCTION public.add_business_member'), 'Fix migration must define add_business_member');
-assert(fixRecursionSql.includes('public.is_business_owner_or_manager(p_business_id)'), 'add_business_member must require owner/manager authorization');
+assert(fixRecursionSql.includes('SELECT role INTO v_caller_role'), 'add_business_member must query caller role from database');
+assert(fixRecursionSql.includes("v_caller_role = 'staff'"), 'add_business_member must forbid staff from inviting');
+assert(fixRecursionSql.includes("v_caller_role = 'manager'"), 'add_business_member must enforce manager restrictions');
+assert(fixRecursionSql.includes("p_role <> 'staff'"), 'add_business_member must restrict managers to inviting staff only');
+const addMemberBlockFix = fixRecursionSql.substring(
+  fixRecursionSql.indexOf('CREATE OR REPLACE FUNCTION public.add_business_member'),
+  fixRecursionSql.indexOf('-- 7. EXECUTION PRIVILEGES')
+);
+assert(!addMemberBlockFix.includes('ON CONFLICT'), 'add_business_member must not allow silent role overwrite via ON CONFLICT DO UPDATE');
+assert(fixRecursionSql.includes('GRANT EXECUTE ON FUNCTION public.add_business_member(UUID, TEXT, TEXT) TO authenticated'), 'add_business_member must grant execution to authenticated users only');
 assert(fixRecursionSql.includes('reload schema'), 'Must reload PostgREST schema cache');
-console.log('  ✔ Dedicated recursion fix migration verified: strict privilege boundary and zero client write policies');
+
+// Also verify reconcile migration includes identical authorization logic
+assert(reconcileSql.includes('CREATE OR REPLACE FUNCTION public.add_business_member'), 'Reconcile migration must define add_business_member');
+assert(reconcileSql.includes('SELECT role INTO v_caller_role'), 'Reconcile migration must query caller role from database');
+assert(reconcileSql.includes("p_role <> 'staff'"), 'Reconcile migration must restrict managers to inviting staff only');
+assert(reconcileSql.includes('User is already a member of this business'), 'Reconcile migration must reject duplicate memberships');
+const addMemberBlockReconcile = reconcileSql.substring(
+  reconcileSql.indexOf('CREATE OR REPLACE FUNCTION public.add_business_member'),
+  reconcileSql.indexOf('-- 8. EXECUTION GRANTS')
+);
+assert(!addMemberBlockReconcile.includes('ON CONFLICT'), 'Reconcile add_business_member must not use ON CONFLICT');
+
+console.log('  ✔ Dedicated recursion fix migration verified: strict privilege boundary, caller role query, and zero client write policies');
 
 // 8. Verify Initial Schema Consistency
 assert(!sqlContent.includes('ON public.business_members FOR INSERT'), 'initial_schema must NOT grant client INSERT permissions on business_members');

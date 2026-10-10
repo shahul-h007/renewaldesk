@@ -13,8 +13,13 @@
 -- 3. Retains strictly non-recursive SELECT policy: USING (user_id = auth.uid()).
 -- 4. Reaffirms create_business_and_owner as the sole authorized, atomic onboarding
 --    mechanism (SECURITY DEFINER, SET search_path = public, auth.uid() required).
--- 5. Defines add_business_member as an authorized, owner-restricted procedure for
---    future team/staff invitations.
+--    Matches exact signature expected by app/onboarding/page.tsx.
+-- 5. Defines add_business_member with rigorous role hierarchy and authorization:
+--    - Queries caller's actual role from database; never trusts client claims.
+--    - Only owners can invite owners or managers.
+--    - Managers can only invite staff.
+--    - Managers cannot promote themselves or anyone else.
+--    - Prevents silent role alteration (rejects duplicate invitations explicitly).
 -- 6. Ensures helper security functions (is_business_member, is_business_owner_or_manager)
 --    execute with STABLE, explicit search_path, and proper permissions.
 -- ==============================================================================
@@ -149,7 +154,7 @@ BEGIN
 END;
 $$;
 
--- 6. AUTHORIZED TEAM MEMBER INVITATION PROCEDURE (Strict Authorization)
+-- 6. AUTHORIZED TEAM MEMBER INVITATION PROCEDURE (Strict Privilege Hierarchy)
 CREATE OR REPLACE FUNCTION public.add_business_member(
   p_business_id UUID,
   p_user_email TEXT,
@@ -162,38 +167,67 @@ SET search_path = public
 AS $$
 DECLARE
   v_caller_id UUID;
+  v_caller_role TEXT;
   v_target_user_id UUID;
   v_new_member public.business_members%ROWTYPE;
 BEGIN
-  -- Authenticate caller
+  -- 1. Require authenticated caller
   v_caller_id := auth.uid();
   IF v_caller_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  -- Enforce authorization: only owners/managers of this business can add members
-  IF NOT public.is_business_owner_or_manager(p_business_id) THEN
-    RAISE EXCEPTION 'Not authorized: only business owners and managers can add members';
-  END IF;
-
-  -- Enforce valid roles
-  IF p_role NOT IN ('owner', 'manager', 'staff') THEN
+  -- 2. Validate requested role parameter
+  IF p_role IS NULL OR p_role NOT IN ('owner', 'manager', 'staff') THEN
     RAISE EXCEPTION 'Invalid role: must be owner, manager, or staff';
   END IF;
 
-  -- Look up target user by email in profiles
+  -- 3. Query caller's actual membership role in this business directly from database
+  SELECT role INTO v_caller_role
+  FROM public.business_members
+  WHERE business_id = p_business_id
+    AND user_id = v_caller_id;
+
+  IF v_caller_role IS NULL THEN
+    RAISE EXCEPTION 'Not authorized: you are not a member of this business';
+  END IF;
+
+  -- 4. Enforce strict role hierarchy and escalation prevention
+  IF v_caller_role = 'staff' THEN
+    RAISE EXCEPTION 'Not authorized: staff members cannot invite team members';
+  ELSIF v_caller_role = 'manager' THEN
+    -- Managers may only invite staff members
+    IF p_role <> 'staff' THEN
+      RAISE EXCEPTION 'Not authorized: managers can only invite staff members';
+    END IF;
+  ELSIF v_caller_role = 'owner' THEN
+    -- Owners are authorized to invite any valid role
+    NULL;
+  ELSE
+    RAISE EXCEPTION 'Not authorized: unknown membership role';
+  END IF;
+
+  -- 5. Look up target user by email in profiles
   SELECT id INTO v_target_user_id
   FROM public.profiles
   WHERE lower(email) = lower(trim(p_user_email));
 
   IF v_target_user_id IS NULL THEN
-    RAISE EXCEPTION 'User with email % not found in profiles', p_user_email;
+    RAISE EXCEPTION 'User with email % not found in profiles', trim(p_user_email);
   END IF;
 
-  -- Add membership
+  -- 6. Check if target user is already a member (no silent role overwrites)
+  IF EXISTS (
+    SELECT 1 FROM public.business_members
+    WHERE business_id = p_business_id
+      AND user_id = v_target_user_id
+  ) THEN
+    RAISE EXCEPTION 'User is already a member of this business';
+  END IF;
+
+  -- 7. Insert the new membership atomically
   INSERT INTO public.business_members (business_id, user_id, role)
   VALUES (p_business_id, v_target_user_id, p_role)
-  ON CONFLICT (business_id, user_id) DO UPDATE SET role = EXCLUDED.role
   RETURNING * INTO v_new_member;
 
   RETURN to_jsonb(v_new_member);
