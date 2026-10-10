@@ -180,6 +180,99 @@ export async function createCustomerInDb(
 }
 
 /**
+ * Update customer details in the database.
+ */
+export async function updateCustomerInDb(businessId: string, customer: Customer) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      name: customer.name.trim(),
+      phone: customer.phone.trim(),
+      email: customer.email?.trim() || null,
+      address: customer.address?.trim() || null,
+      locality: customer.locality?.trim() || null,
+      notes: customer.notes?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customer.id)
+    .eq('business_id', businessId);
+
+  if (error) throw error;
+}
+
+/**
+ * Archive (soft-delete) a customer and cancel their active schedules in the database.
+ */
+export async function archiveCustomerInDb(businessId: string, customerId: string) {
+  const supabase = createClient();
+  
+  // 1. Mark customer as archived
+  const { error: custErr } = await supabase
+    .from('customers')
+    .update({
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+    .eq('business_id', businessId);
+
+  if (custErr) throw custErr;
+
+  // 2. Mark active schedules as cancelled
+  await supabase
+    .from('service_schedules')
+    .update({
+      status: 'CANCELLED',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('customer_id', customerId)
+    .eq('business_id', businessId);
+
+  // 3. Log activity
+  await supabase.from('activities').insert({
+    business_id: businessId,
+    customer_id: customerId,
+    action_type: 'CUSTOMER_ARCHIVED',
+    description: `Archived customer ${customerId}`,
+  });
+}
+
+/**
+ * Bulk import normalized customers, assets, and service schedules from CSV rows into the database.
+ */
+export async function importCustomersFromCSVInDb(businessId: string, validRows: any[]): Promise<number> {
+  let importedCount = 0;
+  for (const row of validRows) {
+    const norm = row.normalized;
+    if (!norm) continue;
+
+    await createCustomerInDb(
+      businessId,
+      {
+        name: norm.name,
+        phone: norm.phone,
+        address: norm.address || 'Kochi',
+        locality: 'Kochi',
+      },
+      {
+        name: norm.assetName || 'Air Conditioner',
+      },
+      {
+        serviceName: 'AC Periodic General Service',
+        lastServiceDate: norm.lastServiceDate || '',
+        nextDueDate: norm.nextDueDate,
+        intervalMonths: 6,
+        serviceAmount: norm.serviceAmount || 1200,
+        followUpStatus: 'NOT_CONTACTED',
+      }
+    );
+    importedCount++;
+  }
+  return importedCount;
+}
+
+/**
  * Update follow-up status on a reminder/schedule.
  */
 export async function updateFollowUpStatusInDb(

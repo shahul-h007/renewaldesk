@@ -45,3 +45,5 @@ desktop.ini
 # Temporary scratch & test artifacts
 coverage/
 .turbo/
+.temp/
+supabase/.temp/

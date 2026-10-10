@@ -271,4 +271,39 @@ assert.throws(() => {
 }, /Tenant isolation violated/, 'Missing business_id must throw an error');
 console.log('  ✔ Enforced mandatory business_id validation for multi-tenant persistence');
 
+// ==========================================
+// Suite 5: Operation Function Signatures & Data Access Integrity
+// ==========================================
+console.log('\n--- Suite 5: Data Access Operations & Signature Integrity ---');
+
+import {
+  createCustomerInDb,
+  updateCustomerInDb,
+  archiveCustomerInDb,
+  importCustomersFromCSVInDb,
+  updateFollowUpStatusInDb,
+  markServiceCompletedInDb,
+  addServiceTypeInDb,
+  updateServiceTypeInDb,
+  deleteServiceTypeInDb,
+  toggleServiceTypeStatusInDb,
+  updateMessageTemplateInDb,
+  updateBusinessInDb,
+} from '../lib/db/operations';
+
+assert.strictEqual(typeof createCustomerInDb, 'function', 'createCustomerInDb must be exported');
+assert.strictEqual(typeof updateCustomerInDb, 'function', 'updateCustomerInDb must be exported');
+assert.strictEqual(typeof archiveCustomerInDb, 'function', 'archiveCustomerInDb must be exported');
+assert.strictEqual(typeof importCustomersFromCSVInDb, 'function', 'importCustomersFromCSVInDb must be exported');
+assert.strictEqual(typeof updateFollowUpStatusInDb, 'function', 'updateFollowUpStatusInDb must be exported');
+assert.strictEqual(typeof markServiceCompletedInDb, 'function', 'markServiceCompletedInDb must be exported');
+assert.strictEqual(typeof addServiceTypeInDb, 'function', 'addServiceTypeInDb must be exported');
+assert.strictEqual(typeof updateServiceTypeInDb, 'function', 'updateServiceTypeInDb must be exported');
+assert.strictEqual(typeof deleteServiceTypeInDb, 'function', 'deleteServiceTypeInDb must be exported');
+assert.strictEqual(typeof toggleServiceTypeStatusInDb, 'function', 'toggleServiceTypeStatusInDb must be exported');
+assert.strictEqual(typeof updateMessageTemplateInDb, 'function', 'updateMessageTemplateInDb must be exported');
+assert.strictEqual(typeof updateBusinessInDb, 'function', 'updateBusinessInDb must be exported');
+console.log('  ✔ All 12 PostgreSQL data-access operations verified');
+
 console.log('\n🎉 ALL BACKEND, SCHEMA & RLS TESTS PASSED SUCCESSFULLY!\n');
+

@@ -8,6 +8,9 @@ import { useAuth } from './auth-context';
 import {
   fetchBusinessData,
   createCustomerInDb,
+  updateCustomerInDb,
+  archiveCustomerInDb,
+  importCustomersFromCSVInDb,
   updateFollowUpStatusInDb,
   markServiceCompletedInDb,
   addServiceTypeInDb,
@@ -343,12 +346,28 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
 
   const updateCustomer = (cust: Customer) => {
     setCustomers(prev => prev.map(c => c.id === cust.id ? cust : c));
+    if (isDatabaseMode && authBiz) {
+      updateCustomerInDb(authBiz.id, cust)
+        .then(() => reloadFromDb())
+        .catch(err => {
+          console.error('Database error updating customer:', err);
+          reloadFromDb();
+        });
+    }
   };
 
   const deleteCustomer = (id: string) => {
     setCustomers(prev => prev.filter(c => c.id !== id));
     setAssets(prev => prev.filter(a => a.customerId !== id));
     setServices(prev => prev.filter(s => s.customerId !== id));
+    if (isDatabaseMode && authBiz) {
+      archiveCustomerInDb(authBiz.id, id)
+        .then(() => reloadFromDb())
+        .catch(err => {
+          console.error('Database error archiving customer:', err);
+          reloadFromDb();
+        });
+    }
   };
 
   const updateFollowUpStatus = (serviceId: string, status: FollowUpStatus) => {
@@ -575,6 +594,15 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     setAssets(prev => [...newAssets, ...prev]);
     setServices(prev => [...newServices, ...prev]);
 
+    if (isDatabaseMode && authBiz) {
+      importCustomersFromCSVInDb(authBiz.id, validRows)
+        .then(() => reloadFromDb())
+        .catch(err => {
+          console.error('Database error importing customers:', err);
+          reloadFromDb();
+        });
+    }
+
     return newCustomers.length;
   };
 
@@ -597,7 +625,16 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   };
 
   const resetDemoData = () => {
-    localStorage.clear();
+    if (isDatabaseMode) {
+      console.warn('Cannot reset demo data while connected to PostgreSQL Cloud mode.');
+      return;
+    }
+    localStorage.removeItem('rd_customers');
+    localStorage.removeItem('rd_assets');
+    localStorage.removeItem('rd_services');
+    localStorage.removeItem('rd_templates');
+    localStorage.removeItem('rd_business');
+    localStorage.removeItem('rd_catalog');
     setCustomers(INITIAL_CUSTOMERS);
     setAssets(INITIAL_ASSETS);
     setServices(generateSeedServices());

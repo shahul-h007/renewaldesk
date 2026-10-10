@@ -38,14 +38,16 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
           {headerActions}
 
-          {/* Reset Demo Data shortcut for testing */}
-          <button
-            onClick={resetDemoData}
-            title="Reset to Kochi AC demo dataset"
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          {/* Reset Demo Data shortcut for demo mode testing */}
+          {!isDatabaseMode && (
+            <button
+              onClick={resetDemoData}
+              title="Reset to Kochi AC demo dataset"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Quick Add Customer CTA */}
           <button
