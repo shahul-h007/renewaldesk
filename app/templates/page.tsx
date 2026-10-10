@@ -5,7 +5,8 @@ import { useRenewalDesk } from '@/lib/store';
 import { AppShell } from '@/components/AppShell';
 import { interpolateTemplate } from '@/lib/whatsapp';
 import { WhatsAppTemplate } from '@/lib/types';
-import { MessageSquare, Save, Check, Sparkles, Smartphone } from 'lucide-react';
+import { Save, Check, Smartphone } from 'lucide-react';
+import { IPhone17ProMockup } from '@/components/IPhone17ProMockup';
 
 export default function TemplatesPage() {
   const { templates, updateTemplate, business } = useRenewalDesk();
@@ -138,44 +139,14 @@ export default function TemplatesPage() {
             <span>Simulated WhatsApp Screen</span>
           </div>
 
-          {/* Smartphone Frame */}
-          <div className="w-full max-w-sm mx-auto bg-gray-900 rounded-[2.5rem] p-3 shadow-2xl border-4 border-gray-800">
-            {/* Phone Screen */}
-            <div className="bg-[#EFEAE2] rounded-[2rem] overflow-hidden flex flex-col h-[460px] relative">
-              {/* WhatsApp App Header */}
-              <div className="bg-[#075E54] text-white p-3 flex items-center gap-2 shadow-sm">
-                <div className="w-7 h-7 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold">
-                  {business.name.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate">{business.name}</p>
-                  <p className="text-[10px] text-emerald-200">Online</p>
-                </div>
-              </div>
-
-              {/* Chat Canvas */}
-              <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                {/* Chat Bubble */}
-                <div className="bg-white rounded-lg rounded-tl-none p-3 shadow-sm space-y-1.5 border border-black/5 text-xs text-gray-800 leading-relaxed whitespace-pre-wrap">
-                  {livePreview}
-                  <div className="text-[10px] text-gray-400 text-right font-mono flex items-center justify-end gap-1 pt-1">
-                    <span>10:14 AM</span>
-                    <span className="text-blue-500 font-bold">✓✓</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* WhatsApp Input Bar */}
-              <div className="bg-[#F0F0F0] p-2 flex items-center gap-2 border-t border-gray-200">
-                <div className="flex-1 bg-white rounded-full px-3 py-1.5 text-[11px] text-gray-400">
-                  Message...
-                </div>
-                <div className="w-7 h-7 rounded-full bg-[#128C7E] flex items-center justify-center text-white">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* iPhone 17 Pro Realistic Hardware Mockup */}
+          <IPhone17ProMockup
+            businessName={business.name}
+            messageText={livePreview}
+            customerName="Arun Kumar"
+            timeString="10:14 AM"
+            onlineStatus="Online"
+          />
 
           <p className="text-[11px] text-center text-gray-400">
             Preview uses sample customer: <strong>Arun Kumar</strong>
