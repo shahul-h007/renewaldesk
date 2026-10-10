@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { RenewalDeskProvider } from '@/lib/store';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'RenewalDesk — Find Due Customers & Bring Them Back via WhatsApp',
@@ -23,6 +24,7 @@ export default function RootLayout({
           </RenewalDeskProvider>
         </AuthProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
