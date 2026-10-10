@@ -111,9 +111,20 @@ const reconcileSql = fs.readFileSync(reconcilePath, 'utf8');
 assert(reconcileSql.includes('CREATE OR REPLACE FUNCTION public.create_business_and_owner'), 'Reconciliation must define create_business_and_owner');
 assert(reconcileSql.includes('GRANT EXECUTE ON FUNCTION public.create_business_and_owner'), 'Reconciliation must grant execute permission');
 assert(reconcileSql.includes('reload schema'), 'Reconciliation must reload schema cache');
-console.log('  ✔ Reconciliation migration verified with create_business_and_owner and schema reload');
+// Assert business_members does not call is_business_member(business_id) in its own policy
+assert(!reconcileSql.includes('ON public.business_members FOR SELECT\n  USING (public.is_business_member(business_id))'), 'business_members SELECT policy must not recursively call is_business_member');
+console.log('  ✔ Reconciliation migration verified with create_business_and_owner and non-recursive RLS');
 
-// 7. Verify Diagnostic Script Integrity
+// 7. Verify Dedicated Recursion Fix Migration
+const fixRecursionPath = path.resolve(process.cwd(), 'supabase/migrations/20261010_fix_business_members_recursion.sql');
+assert(fs.existsSync(fixRecursionPath), 'Recursion fix migration file must exist');
+const fixRecursionSql = fs.readFileSync(fixRecursionPath, 'utf8');
+assert(fixRecursionSql.includes('DROP POLICY IF EXISTS "Members can view co-members of their businesses" ON public.business_members;'), 'Must drop recursive policy');
+assert(fixRecursionSql.includes('CREATE POLICY "Users can view own business memberships"'), 'Must create non-recursive policy');
+assert(fixRecursionSql.includes('reload schema'), 'Must reload PostgREST schema cache');
+console.log('  ✔ Dedicated recursion fix migration verified with direct non-recursive policy');
+
+// 8. Verify Diagnostic Script Integrity
 const diagnosticPath = path.resolve(process.cwd(), 'supabase/diagnostics/audit_schema.sql');
 assert(fs.existsSync(diagnosticPath), 'Diagnostic SQL file must exist');
 const diagSql = fs.readFileSync(diagnosticPath, 'utf8');

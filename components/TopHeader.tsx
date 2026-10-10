@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AddCustomerModal } from './AddCustomerModal';
 import { Plus, RotateCcw, Search, Sparkles } from 'lucide-react';
 
@@ -12,7 +13,8 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
-  const { resetDemoData, isDatabaseMode } = useRenewalDesk();
+  const { resetDemoData, isDatabaseMode, isLoadingDb } = useRenewalDesk();
+  const { isLoading: isAuthLoading } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -25,7 +27,12 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
         <div className="flex items-center gap-2.5">
           {/* Status Badge */}
-          {isDatabaseMode ? (
+          {isAuthLoading || isLoadingDb ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              Syncing Cloud...
+            </span>
+          ) : isDatabaseMode ? (
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               PostgreSQL Cloud

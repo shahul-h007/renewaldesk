@@ -369,21 +369,14 @@ CREATE POLICY "Owners and Managers can update their business"
   USING (public.is_business_owner_or_manager(id))
   WITH CHECK (public.is_business_owner_or_manager(id));
 
--- 3. BUSINESS_MEMBERS
-CREATE POLICY "Members can view co-members of their businesses"
+-- 3. BUSINESS_MEMBERS (Non-recursive direct policies)
+CREATE POLICY "Users can view own business memberships"
   ON public.business_members FOR SELECT
-  USING (public.is_business_member(business_id));
+  USING (user_id = auth.uid());
 
-CREATE POLICY "Owners can manage business memberships"
-  ON public.business_members FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.business_members bm
-      WHERE bm.business_id = business_members.business_id
-        AND bm.user_id = auth.uid()
-        AND bm.role = 'owner'
-    )
-  );
+CREATE POLICY "Users can insert own business memberships"
+  ON public.business_members FOR INSERT
+  WITH CHECK (user_id = auth.uid());
 
 -- 4. CUSTOMERS
 CREATE POLICY "Business members can view customers"

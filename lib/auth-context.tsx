@@ -30,6 +30,7 @@ interface AuthContextType {
   businesses: BusinessContext[];
   isLoading: boolean;
   isConfigured: boolean;
+  authError: string | null;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [business, setBusiness] = useState<BusinessContext | null>(null);
   const [businesses, setBusinesses] = useState<BusinessContext[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setBusiness(null);
       setBusinesses([]);
+      setAuthError(null);
       setIsLoading(false);
       return;
     }
@@ -85,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Fetch user's business memberships and businesses
-      const { data: memberRows } = await supabase
+      const { data: memberRows, error: memberErr } = await supabase
         .from('business_members')
         .select(`
           role,
@@ -101,7 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         `)
         .eq('user_id', currentUser.id);
 
-      if (memberRows && memberRows.length > 0) {
+      if (memberErr) {
+        console.error('Error fetching user business memberships:', memberErr);
+        setAuthError(memberErr.message || 'Failed to query business memberships from cloud database');
+        setBusinesses([]);
+        setBusiness(null);
+      } else if (memberRows && memberRows.length > 0) {
         const parsedList: BusinessContext[] = memberRows
           .filter((m: any) => m.business)
           .map((m: any) => ({
@@ -120,16 +128,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Keep active business selection from storage or default to first
         const savedBizId = typeof window !== 'undefined' ? localStorage.getItem('rd_active_biz_id') : null;
         const matchingBiz = parsedList.find(b => b.id === savedBizId) || parsedList[0];
-        setBusiness(matchingBiz);
+        setBusiness(matchingBiz || null);
         if (matchingBiz && typeof window !== 'undefined') {
           localStorage.setItem('rd_active_biz_id', matchingBiz.id);
         }
+        setAuthError(null);
       } else {
         setBusinesses([]);
         setBusiness(null);
+        setAuthError(null);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching user context:', err);
+      setAuthError(err.message || 'Unexpected error fetching user context');
     } finally {
       setIsLoading(false);
     }
@@ -245,6 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         businesses,
         isLoading,
         isConfigured: configured,
+        authError,
         signInWithEmail,
         signUpWithEmail,
         signInWithGoogle,

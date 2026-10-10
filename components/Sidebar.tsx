@@ -23,8 +23,8 @@ import {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { services, business, isDatabaseMode } = useRenewalDesk();
-  const { user, signOut } = useAuth();
+  const { services, business, isDatabaseMode, isLoadingDb } = useRenewalDesk();
+  const { user, signOut, isLoading: isAuthLoading } = useAuth();
 
   // Calculate live count of Overdue items needing urgent attention
   const overdueCount = services.filter(s => s.urgency === 'OVERDUE' && s.followUpStatus !== 'COMPLETED').length;
@@ -114,10 +114,15 @@ export function Sidebar() {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-gray-900 truncate">{business.name}</p>
               <div className="flex items-center gap-1 text-[10px]">
-                {isDatabaseMode ? (
+                {isAuthLoading || isLoadingDb ? (
+                  <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                    <Cloud className="w-3 h-3 text-blue-500 animate-pulse" />
+                    Connecting...
+                  </span>
+                ) : isDatabaseMode ? (
                   <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
                     <Cloud className="w-3 h-3 text-emerald-500" />
-                    Supabase
+                    Supabase Cloud
                   </span>
                 ) : (
                   <span className="text-gray-400 font-medium">Demo Mode</span>

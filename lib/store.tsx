@@ -29,6 +29,8 @@ interface RenewalDeskContextType {
   templates: WhatsAppTemplate[];
   business: BusinessProfile;
   isLoaded: boolean;
+  isLoadingDb: boolean;
+  dbError: string | null;
   addCustomer: (cust: Omit<Customer, 'id' | 'createdAt'>, asset: Omit<Asset, 'id' | 'customerId'>, service: Omit<ServiceRecord, 'id' | 'customerId' | 'assetId' | 'urgency'>) => void;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
@@ -201,7 +203,7 @@ function generateSeedServices(): ServiceRecord[] {
 const RenewalDeskContext = createContext<RenewalDeskContextType | null>(null);
 
 export function RenewalDeskProvider({ children }: { children: React.ReactNode }) {
-  const { user, business: authBiz, isConfigured } = useAuth();
+  const { user, business: authBiz, isConfigured, isLoading: isAuthLoading } = useAuth();
   const isDatabaseMode = Boolean(isConfigured && user && authBiz);
 
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
@@ -211,10 +213,14 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
   const [business, setBusiness] = useState<BusinessProfile>(INITIAL_BUSINESS);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Reload data from Supabase for authenticated business
   const reloadFromDb = useCallback(async () => {
     if (!authBiz) return;
+    setIsLoadingDb(true);
+    setDbError(null);
     try {
       const data = await fetchBusinessData(authBiz.id);
       setCustomers(data.customers);
@@ -223,20 +229,40 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCatalog(data.catalog);
       setTemplates(data.templates);
       setBusiness(data.business);
-    } catch (err) {
+      setDbError(null);
+    } catch (err: any) {
       console.error('Failed to load business data from Supabase:', err);
+      setDbError(err.message || 'Failed to load business records from cloud database');
+      // In database mode, do not display sample records as cloud data
+      setCustomers([]);
+      setAssets([]);
+      setServices([]);
     } finally {
+      setIsLoadingDb(false);
       setIsLoaded(true);
     }
   }, [authBiz]);
 
   // Load from Supabase in database mode, or LocalStorage in demo mode
   useEffect(() => {
+    // 1. Wait for authentication determination before choosing data source
+    if (isAuthLoading) {
+      return;
+    }
+
+    // 2. Database mode: load from Supabase PostgreSQL
     if (isDatabaseMode && authBiz) {
       reloadFromDb();
       return;
     }
 
+    // 3. User is authenticated but business is not yet configured: wait for onboarding
+    if (isConfigured && user && !authBiz) {
+      setIsLoaded(true);
+      return;
+    }
+
+    // 4. Offline / Demo Mode: load from LocalStorage or seed data
     try {
       const storedCust = localStorage.getItem('rd_customers');
       const storedAssets = localStorage.getItem('rd_assets');
@@ -287,11 +313,11 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     } finally {
       setIsLoaded(true);
     }
-  }, [isDatabaseMode, authBiz, reloadFromDb]);
+  }, [isAuthLoading, isDatabaseMode, authBiz, isConfigured, user, reloadFromDb]);
 
-  // Sync to LocalStorage on changes when in demo/offline mode
+  // Sync to LocalStorage on changes when in demo/offline mode ONLY
   useEffect(() => {
-    if (!isLoaded || isDatabaseMode) return;
+    if (!isLoaded || isDatabaseMode || isAuthLoading || (isConfigured && user)) return;
     try {
       localStorage.setItem('rd_customers', JSON.stringify(customers));
       localStorage.setItem('rd_assets', JSON.stringify(assets));
@@ -302,7 +328,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     } catch (e) {
       console.error('Error saving state to localStorage', e);
     }
-  }, [customers, assets, services, templates, business, catalog, isLoaded, isDatabaseMode]);
+  }, [customers, assets, services, templates, business, catalog, isLoaded, isDatabaseMode, isAuthLoading, isConfigured, user]);
 
   const addCustomer = (
     custData: Omit<Customer, 'id' | 'createdAt'>,
@@ -653,6 +679,8 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         templates,
         business,
         isLoaded,
+        isLoadingDb,
+        dbError,
         addCustomer,
         updateCustomer,
         deleteCustomer,

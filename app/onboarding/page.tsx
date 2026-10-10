@@ -18,7 +18,7 @@ const BUSINESS_TYPES = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, isConfigured, refreshBusinessContext } = useAuth();
+  const { user, isConfigured, isLoading: isAuthLoading, business: existingBiz, refreshBusinessContext } = useAuth();
 
   const [businessName, setBusinessName] = useState('');
   const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
@@ -29,6 +29,20 @@ export default function OnboardingPage() {
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // If already authenticated and already has a business, redirect straight to dashboard
+  React.useEffect(() => {
+    if (isConfigured && !isAuthLoading && user && existingBiz) {
+      router.push('/dashboard');
+    }
+  }, [isConfigured, isAuthLoading, user, existingBiz, router]);
+
+  // If Supabase is configured and user is unauthenticated, redirect to login
+  React.useEffect(() => {
+    if (isConfigured && !isAuthLoading && !user) {
+      router.push('/login?redirectTo=/onboarding');
+    }
+  }, [isConfigured, isAuthLoading, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +57,21 @@ export default function OnboardingPage() {
     setIsLoading(true);
 
     try {
-      if (isConfigured && user) {
+      if (isConfigured) {
         const supabase = createClient();
+        let activeUser = user;
+        if (!activeUser) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          activeUser = sessionData?.session?.user ?? null;
+        }
+
+        if (!activeUser) {
+          setErrorMsg('Authentication required. Please sign in to create your business account.');
+          setIsLoading(false);
+          router.push('/login?redirectTo=/onboarding');
+          return;
+        }
+
         // Invoke atomic onboarding function
         const { data, error } = await supabase.rpc('create_business_and_owner', {
           p_name: trimmedName,
@@ -64,8 +91,9 @@ export default function OnboardingPage() {
         }
 
         await refreshBusinessContext();
+        router.push('/dashboard');
       } else {
-        // LocalStorage / Demo fallback
+        // LocalStorage / Demo fallback when Supabase is not configured
         const demoBiz = {
           name: trimmedName,
           business_type: businessType,
@@ -76,9 +104,8 @@ export default function OnboardingPage() {
           defaultIntervalMonths: 6,
         };
         localStorage.setItem('rd_business', JSON.stringify(demoBiz));
+        router.push('/dashboard');
       }
-
-      router.push('/dashboard');
     } catch (err: any) {
       console.error('Onboarding error:', err);
       setErrorMsg(err.message || 'Failed to create business account. Please try again.');
@@ -86,6 +113,19 @@ export default function OnboardingPage() {
       setIsLoading(false);
     }
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white mx-auto animate-spin">
+            <RotateCw className="w-5 h-5 stroke-[2.5]" />
+          </div>
+          <p className="text-xs text-gray-500 font-medium">Verifying business workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in">

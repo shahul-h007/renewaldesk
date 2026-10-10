@@ -1,17 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
-import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles } from 'lucide-react';
+import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles, RefreshCw } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
 export default function DashboardPage() {
-  const { services, customers, assets, business } = useRenewalDesk();
+  const router = useRouter();
+  const { services, customers, assets, business, isDatabaseMode, isLoadingDb, dbError, reloadFromDb } = useRenewalDesk();
+  const { user, business: authBiz, isConfigured, isLoading: isAuthLoading, authError } = useAuth();
   const [activeTab, setActiveTab] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'WEEK' | 'COMPLETED'>('OVERDUE');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // If user is authenticated in cloud mode but has no business account yet, redirect to onboarding
+  useEffect(() => {
+    if (isConfigured && !isAuthLoading && user && !authBiz && !authError) {
+      router.push('/onboarding');
+    }
+  }, [isConfigured, isAuthLoading, user, authBiz, authError, router]);
 
   // Metrics
   const overdueServices = services.filter(s => s.urgency === 'OVERDUE' && s.followUpStatus !== 'COMPLETED');
@@ -61,6 +72,31 @@ export default function DashboardPage() {
       subtitle={`Find customers due for service, send WhatsApp, and secure bookings.`}
     >
       <div className="space-y-6">
+        {/* Cloud Error Alert Banner */}
+        {(dbError || authError) && (
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-900 text-sm">Cloud Database Connection Issue</p>
+                <p className="text-red-700 mt-0.5">{dbError || authError}</p>
+                <p className="text-red-600 text-[11px] mt-1">
+                  Ensure the non-recursive RLS migration is applied to your Supabase project.
+                </p>
+              </div>
+            </div>
+            {reloadFromDb && (
+              <button
+                onClick={() => reloadFromDb()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors shrink-0 shadow-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Connection</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* KPI Cards Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {/* Card 1: Overdue */}
