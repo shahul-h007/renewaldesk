@@ -109,6 +109,10 @@ export async function POST(request: Request) {
 
         if (upsertErr) {
           console.error('Fallback subscription upsert error:', upsertErr);
+          return NextResponse.json(
+            { error: 'Payment was verified, but saving subscription state failed due to database schema setup. Please contact support.' },
+            { status: 500 }
+          );
         }
       }
 
