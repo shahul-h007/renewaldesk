@@ -321,7 +321,8 @@ export async function importCustomersFromCSVInDb(
   let failedCount = 0;
   const errors: string[] = [];
 
-  for (const [index, row] of validRows.entries()) {
+  for (let index = 0; index < validRows.length; index++) {
+    const row = validRows[index];
     const norm = row.normalized;
     if (!norm) continue;
 
