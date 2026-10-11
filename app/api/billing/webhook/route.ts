@@ -48,12 +48,20 @@ export async function POST(request: Request) {
     }
 
     // 3. Record event in webhook_events
-    await supabase.from('webhook_events').insert({
+    const { error: insertErr } = await supabase.from('webhook_events').insert({
       event_id: eventId,
       event_type: eventType,
       payload: event,
       status: 'processed',
     });
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        // Handled by concurrent duplicate delivery
+        return NextResponse.json({ status: 'already_processed', eventId });
+      }
+      console.error('Error recording webhook event:', insertErr);
+    }
 
     const payload = event?.payload || {};
 

@@ -199,7 +199,22 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  v_assigned_slot := v_current_slots + 1;
+  -- Find the lowest available slot number between 1 and 25
+  SELECT s.num INTO v_assigned_slot
+  FROM generate_series(1, 25) AS s(num)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.business_subscriptions bs
+    WHERE bs.lifetime_slot_number = s.num
+      AND bs.is_lifetime = true
+      AND bs.status = 'active'
+  )
+  ORDER BY s.num ASC
+  LIMIT 1;
+
+  IF v_assigned_slot IS NULL THEN
+    RAISE EXCEPTION 'FOUNDING_LIFETIME_SOLD_OUT: All 25 lifetime launch slots have been claimed.'
+      USING ERRCODE = 'P0001';
+  END IF;
 
   -- 3. Upsert subscription record
   INSERT INTO public.business_subscriptions (
@@ -258,3 +273,20 @@ BEGIN
   RETURN v_assigned_slot;
 END;
 $$;
+
+-- 7. SAFE BACKFILL: Ensure all existing workspaces have a baseline starter subscription
+INSERT INTO public.business_subscriptions (
+  business_id,
+  plan_id,
+  billing_type,
+  status,
+  max_active_customers
+)
+SELECT
+  b.id,
+  'starter',
+  'free_trial',
+  'trialing',
+  25
+FROM public.businesses b
+ON CONFLICT (business_id) DO NOTHING;
