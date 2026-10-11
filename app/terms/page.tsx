@@ -319,14 +319,11 @@ export default function TermsOfServicePage() {
             <div>
               <strong>Questions or Inquiries:</strong>{' '}
               <a
-                href="mailto:support@renewaldesk.com"
+                href="mailto:shahulhmd.connect@gmail.com"
                 className="font-bold text-blue-700 hover:text-blue-900 underline"
               >
-                support@renewaldesk.com
+                shahulhmd.connect@gmail.com
               </a>
-            </div>
-            <div className="text-[11px] text-slate-500 pt-1">
-              <em>Note: Official entity name and contact details should be confirmed prior to formal legal enforcement.</em>
             </div>
           </div>
         </section>

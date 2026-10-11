@@ -329,7 +329,14 @@ export default function PrivacyPolicyPage() {
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
             <h3 className="font-bold text-slate-900">How to Request Deletion:</h3>
             <p>
-              You may request complete deletion of your account and all associated customer, equipment, and service records at any time by emailing us at our support address. Upon verification of your account ownership, we will permanently purge your workspace records from our active database.
+              You may request complete deletion of your account and all associated customer, equipment, and service records at any time by emailing us at{' '}
+              <a
+                href="mailto:shahulhmd.connect@gmail.com"
+                className="font-semibold text-blue-700 hover:text-blue-900 underline"
+              >
+                shahulhmd.connect@gmail.com
+              </a>
+              . Upon verification of your account ownership, we will permanently purge your workspace records from our active database.
             </p>
           </div>
         </section>
@@ -355,14 +362,11 @@ export default function PrivacyPolicyPage() {
             <div>
               <strong>Support &amp; Privacy Inquiries:</strong>{' '}
               <a
-                href="mailto:support@renewaldesk.com"
+                href="mailto:shahulhmd.connect@gmail.com"
                 className="font-bold text-blue-700 hover:text-blue-900 underline"
               >
-                support@renewaldesk.com
+                shahulhmd.connect@gmail.com
               </a>
-            </div>
-            <div className="text-[11px] text-slate-500 pt-1">
-              <em>Note: If you have a custom or company-specific support email, please update your configuration accordingly.</em>
             </div>
           </div>
         </section>
