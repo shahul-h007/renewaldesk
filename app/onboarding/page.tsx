@@ -19,7 +19,7 @@ const BUSINESS_TYPES = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, isConfigured, isLoading: isAuthLoading, business: existingBiz, refreshBusinessContext } = useAuth();
+  const { user, isConfigured, isLoading: isAuthLoading, business: existingBiz, refreshBusinessContext, authError } = useAuth();
 
   const [businessName, setBusinessName] = useState('');
   const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
@@ -48,6 +48,11 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (authError) {
+      setErrorMsg('RenewalDesk could not confirm your current business membership. Retry the workspace lookup before creating a new business to avoid duplicates.');
+      return;
+    }
 
     const trimmedName = businessName.trim();
     if (!trimmedName) {
@@ -142,8 +147,25 @@ export default function OnboardingPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
         <div className="bg-white py-8 px-6 shadow-sm border border-gray-200 rounded-2xl sm:px-10">
+          {authError && (
+            <div role="alert" className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span className="leading-snug">We could not verify your existing business workspace: {authError}. Please retry the lookup before creating another business.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { void refreshBusinessContext(); }}
+                className="ml-6 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                Retry workspace lookup
+              </button>
+            </div>
+          )}
+
           {errorMsg && (
-            <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2.5">
+            <div role="alert" className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <span className="leading-snug">{errorMsg}</span>
             </div>
@@ -248,8 +270,8 @@ export default function OnboardingPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md transition-all flex items-center justify-center gap-2"
+              disabled={isLoading || Boolean(authError)}
+              className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <span>Setting up workspace...</span>
