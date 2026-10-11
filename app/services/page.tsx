@@ -23,7 +23,7 @@ export default function ServicesPage() {
   const { catalog, business, services, toggleServiceTypeStatus, isLoadingDb, isLoaded } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
 
-  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+  const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ServiceCatalogItem | null>(null);
