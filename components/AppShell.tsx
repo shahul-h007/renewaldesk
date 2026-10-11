@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { MobileNav } from './MobileNav';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface AppShellProps {
@@ -16,6 +18,17 @@ interface AppShellProps {
 
 export function AppShell({ title, subtitle, headerActions, children }: AppShellProps) {
   const { dbError, reloadFromDb } = useRenewalDesk();
+  const { user, business, isConfigured, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Do not let an authenticated cloud user operate against transient/local data
+  // when no tenant workspace has been resolved yet.
+  useEffect(() => {
+    if (isConfigured && !isAuthLoading && user && !business && pathname !== '/onboarding') {
+      router.replace('/onboarding');
+    }
+  }, [isConfigured, isAuthLoading, user, business, pathname, router]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
