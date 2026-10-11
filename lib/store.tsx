@@ -755,7 +755,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         name: norm.name,
         phone: norm.phone,
         address: norm.address || 'Kochi',
-        locality: norm.locality || 'Kochi',
+        locality: norm.address || 'Kochi',
         createdAt: new Date().toISOString().split('T')[0],
       });
       newAssets.push({
@@ -767,7 +767,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         id: sId,
         customerId: cId,
         assetId: aId,
-        serviceName: norm.serviceName || 'AC Periodic General Service',
+        serviceName: 'AC Periodic General Service',
         lastServiceDate: norm.lastServiceDate,
         nextDueDate: norm.nextDueDate,
         intervalMonths: 6,
