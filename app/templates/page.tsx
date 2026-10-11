@@ -22,7 +22,7 @@ export default function TemplatesPage() {
   const { templates, updateTemplate, business, customers, assets, services, isLoadingDb, isLoaded } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
 
-  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+  const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templates[0]?.id || 'tpl-overdue');
   const [editedText, setEditedText] = useState<string>(templates[0]?.templateText || '');
