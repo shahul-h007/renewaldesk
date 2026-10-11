@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { RotateCw, Mail, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
+import { Mail, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -49,14 +50,9 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         {/* Brand Header */}
-        <Link href="/" className="inline-flex items-center gap-2.5 mb-3 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <RotateCw className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <span className="font-extrabold text-2xl text-gray-900 tracking-tight">
-            Renewal<span className="text-blue-600">Desk</span>
-          </span>
-        </Link>
+        <div className="mb-3">
+          <BrandLogo variant="mark" size="xl" href="/" priority />
+        </div>
         <h2 className="text-xl font-bold text-gray-900">Reset your password</h2>
         <p className="mt-1 text-xs text-gray-500">
           Enter your registered email address to receive password reset instructions

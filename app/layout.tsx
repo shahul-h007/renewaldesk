@@ -8,6 +8,15 @@ import { Analytics } from '@vercel/analytics/next';
 export const metadata: Metadata = {
   title: 'RenewalDesk — Find Due Customers & Bring Them Back via WhatsApp',
   description: 'Helping small service businesses track due dates, follow up on WhatsApp, and recover repeat revenue.',
+  icons: {
+    icon: [
+      { url: '/brand/renewaldesk-icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/brand/renewaldesk-icon.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/brand/renewaldesk-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 };
 
 export default function RootLayout({

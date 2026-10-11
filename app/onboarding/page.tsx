@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
+import { BrandLogo } from '@/components/BrandLogo';
 import { RotateCw, Building2, Phone, MapPin, Wrench, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const BUSINESS_TYPES = [
@@ -130,13 +131,8 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fade-in">
       <div className="sm:mx-auto sm:w-full sm:max-w-lg text-center">
-        <div className="inline-flex items-center gap-2.5 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-md">
-            <RotateCw className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <span className="font-extrabold text-2xl text-gray-900 tracking-tight">
-            Renewal<span className="text-blue-600">Desk</span>
-          </span>
+        <div className="mb-3">
+          <BrandLogo variant="mark" size="xl" href="/" priority />
         </div>
         <h2 className="text-xl font-bold text-gray-900">Welcome to RenewalDesk!</h2>
         <p className="mt-1 text-xs text-gray-500 max-w-sm mx-auto">

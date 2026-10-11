@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { getSafeInternalRedirect } from '@/lib/auth-utils';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
   RotateCw,
   Mail,
@@ -125,18 +126,14 @@ function SignUpForm() {
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 p-6 sm:p-10 flex flex-col justify-between">
           <div>
             {/* Brand Header */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-                <RotateCw className="w-5 h-5 stroke-[2.5]" />
-              </div>
-              <div>
-                <span className="font-extrabold text-xl text-slate-900 tracking-tight">
-                  Renewal<span className="text-blue-600">Desk</span>
-                </span>
-                <span className="block text-[11px] text-slate-500 font-medium">
-                  14-Day Free Trial • No Credit Card Required
-                </span>
-              </div>
+            <div className="mb-6">
+              <BrandLogo
+                variant="mark"
+                size="lg"
+                href="/"
+                subtitle="14-Day Free Trial • No Credit Card Required"
+                priority
+              />
             </div>
 
             <div className="mb-6">

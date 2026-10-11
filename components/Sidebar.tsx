@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
+import { BrandLogo } from './BrandLogo';
 import {
   LayoutDashboard,
   Users,
@@ -13,7 +14,6 @@ import {
   Settings,
   Upload,
   Wrench,
-  RotateCw,
   Sparkles,
   LogOut,
   LogIn,
@@ -44,16 +44,14 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 h-screen sticky top-0 z-30 select-none">
       {/* Brand Header */}
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-sm">
-            <RotateCw className="w-4 h-4 stroke-[2.5]" />
-          </div>
-          <div>
-            <span className="font-bold text-gray-900 text-base tracking-tight">Renewal<span className="text-blue-600">Desk</span></span>
-            <span className="block text-[10px] text-gray-400 font-medium">Customer Recovery</span>
-          </div>
-        </Link>
+      <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+        <BrandLogo
+          variant="mark"
+          size="sm"
+          href="/dashboard"
+          subtitle="Customer Recovery"
+          priority
+        />
       </div>
 
       {/* Navigation Links */}

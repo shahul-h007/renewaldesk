@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
-  RotateCw,
   Sparkles,
   AlertCircle,
   Clock,
@@ -251,10 +251,8 @@ export default function DemoPage() {
       <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
-                <RotateCw className="w-4 h-4" />
-              </div>
+            <div className="flex items-center gap-2.5">
+              <BrandLogo variant="icon" size="sm" priority />
               <h1 className="text-xl font-bold text-slate-900">RenewalDesk — Follow-up Queue</h1>
               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
                 Interactive Preview

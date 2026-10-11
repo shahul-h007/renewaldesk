@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
-  RotateCw,
   MessageSquare,
   ArrowRight,
   CheckCircle2,
@@ -42,14 +42,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
-              <RotateCw className="w-4 h-4 stroke-[2.5]" />
-            </div>
-            <span className="font-extrabold text-slate-900 text-lg tracking-tight">
-              Renewal<span className="text-blue-600">Desk</span>
-            </span>
-          </Link>
+          <BrandLogo variant="mark" size="md" href="/" priority />
 
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-600">
@@ -507,13 +500,13 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="mt-auto py-12 bg-slate-900 text-slate-400 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
-              <RotateCw className="w-3.5 h-3.5" />
-            </div>
-            <span className="font-bold text-white text-sm">RenewalDesk</span>
-            <span className="text-slate-500 text-[11px]">— Recurring Service Customer Retention</span>
-          </div>
+          <BrandLogo
+            variant="mark"
+            size="sm"
+            href="/"
+            invertText
+            subtitle="— Recurring Service Customer Retention"
+          />
 
           <div className="flex flex-wrap items-center justify-center gap-6 font-medium">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
