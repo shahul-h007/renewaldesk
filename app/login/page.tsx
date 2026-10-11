@@ -302,9 +302,19 @@ function LoginForm() {
                 Start 14-day free trial
               </Link>
             </div>
-            <Link href="/demo" className="text-slate-600 hover:text-blue-600 font-medium">
-              View sample demo &rarr;
-            </Link>
+            <div className="flex items-center gap-2.5">
+              <Link href="/privacy" className="text-slate-500 hover:text-blue-600 transition-colors">
+                Privacy
+              </Link>
+              <span>•</span>
+              <Link href="/terms" className="text-slate-500 hover:text-blue-600 transition-colors">
+                Terms
+              </Link>
+              <span>•</span>
+              <Link href="/demo" className="text-slate-600 hover:text-blue-600 font-medium">
+                Sample demo &rarr;
+              </Link>
+            </div>
           </div>
         </div>
 

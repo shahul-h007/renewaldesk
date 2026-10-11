@@ -515,6 +515,8 @@ export default function LandingPage() {
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <Link href="/login" className="hover:text-white transition-colors">Log In</Link>
             <Link href="/signup" className="hover:text-white transition-colors">Sign Up</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>
 
           <p className="text-slate-500 text-[11px]">

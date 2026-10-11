@@ -319,6 +319,18 @@ function SignUpForm() {
                   </>
                 )}
               </button>
+
+              <p className="mt-3 text-[11px] text-slate-500 text-center leading-relaxed">
+                By creating an account, you agree to our{' '}
+                <Link href="/terms" className="font-semibold text-slate-700 underline hover:text-blue-600 transition-colors">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" className="font-semibold text-slate-700 underline hover:text-blue-600 transition-colors">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </form>
           </div>
 
@@ -333,9 +345,19 @@ function SignUpForm() {
                 Sign in
               </Link>
             </div>
-            <Link href="/demo" className="text-slate-600 hover:text-blue-600 font-medium">
-              View sample demo &rarr;
-            </Link>
+            <div className="flex items-center gap-2.5">
+              <Link href="/privacy" className="text-slate-500 hover:text-blue-600 transition-colors">
+                Privacy
+              </Link>
+              <span>•</span>
+              <Link href="/terms" className="text-slate-500 hover:text-blue-600 transition-colors">
+                Terms
+              </Link>
+              <span>•</span>
+              <Link href="/demo" className="text-slate-600 hover:text-blue-600 font-medium">
+                Sample demo &rarr;
+              </Link>
+            </div>
           </div>
         </div>
 
