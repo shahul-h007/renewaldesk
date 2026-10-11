@@ -324,13 +324,13 @@ export async function importCustomersFromCSVInDb(
           name: norm.name,
           phone: norm.phone,
           address: norm.address || 'Kochi',
-          locality: norm.locality || 'Kochi',
+          locality: norm.address || 'Kochi',
         },
         {
           name: norm.assetName || 'Air Conditioner',
         },
         {
-          serviceName: norm.serviceName || 'AC Periodic General Service',
+          serviceName: 'AC Periodic General Service',
           lastServiceDate: norm.lastServiceDate || '',
           nextDueDate: norm.nextDueDate,
           intervalMonths: 6,
