@@ -35,6 +35,8 @@ export default function PricingPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
+  const [pendingVerificationPayload, setPendingVerificationPayload] = useState<any>(null);
+  const [isRetryingVerification, setIsRetryingVerification] = useState(false);
 
   // Fetch current usage and lifetime slots claimed
   useEffect(() => {
@@ -169,6 +171,8 @@ export default function PricingPage() {
 
   const verifyPayment = async (verificationPayload: any) => {
     try {
+      setPendingVerificationPayload(verificationPayload);
+      setIsRetryingVerification(true);
       const res = await fetch('/api/billing/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,6 +184,8 @@ export default function PricingPage() {
         throw new Error(result.error || 'Payment verification failed on the server.');
       }
 
+      setPendingVerificationPayload(null);
+      setErrorMessage(null);
       setActivePlanId(result.planId);
       setSuccessMessage(
         `Payment successful! Your workspace is now activated on the ${result.planName} plan (${result.maxActiveCustomers} active customer capacity).`
@@ -193,6 +199,7 @@ export default function PricingPage() {
         verifyErr.message || 'Payment completed, but verification timed out. Your access will activate automatically once confirmed.'
       );
     } finally {
+      setIsRetryingVerification(false);
       setProcessingPlanId(null);
     }
   };
@@ -263,6 +270,19 @@ export default function PricingPage() {
             <div className="flex-1">
               <p className="font-bold">Payment Error</p>
               <p className="mt-0.5 text-red-800">{errorMessage}</p>
+              {pendingVerificationPayload && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => verifyPayment(pendingVerificationPayload)}
+                    disabled={isRetryingVerification}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRetryingVerification ? 'animate-spin' : ''}`} />
+                    <span>{isRetryingVerification ? 'Activating Subscription...' : 'Retry Subscription Activation'}</span>
+                  </button>
+                </div>
+              )}
             </div>
             <button onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-700 text-sm font-bold">×</button>
           </div>

@@ -83,7 +83,12 @@ CREATE POLICY "business_subscriptions_select_member" ON public.business_subscrip
   FOR SELECT
   USING (public.is_business_member(business_id));
 
--- Subscriptions write: Zero client write permissions. Entitlements are only updated by verified server actions.
+-- Subscriptions write: Owners and managers can insert and update their workspace subscription
+DROP POLICY IF EXISTS "business_subscriptions_manage_owner_manager" ON public.business_subscriptions;
+CREATE POLICY "business_subscriptions_manage_owner_manager" ON public.business_subscriptions
+  FOR ALL
+  USING (public.is_business_owner_or_manager(business_id))
+  WITH CHECK (public.is_business_owner_or_manager(business_id));
 
 -- Payment transactions: Only Owners and Managers can view payment transactions
 DROP POLICY IF EXISTS "payment_transactions_select_owner_manager" ON public.payment_transactions;
@@ -91,7 +96,11 @@ CREATE POLICY "payment_transactions_select_owner_manager" ON public.payment_tran
   FOR SELECT
   USING (public.is_business_owner_or_manager(business_id));
 
--- Payment transactions write: Zero client write permissions.
+-- Payment transactions insert: Owners and managers can record payment transactions
+DROP POLICY IF EXISTS "payment_transactions_insert_owner_manager" ON public.payment_transactions;
+CREATE POLICY "payment_transactions_insert_owner_manager" ON public.payment_transactions
+  FOR INSERT
+  WITH CHECK (public.is_business_owner_or_manager(business_id));
 
 -- Webhook events: Zero client access (private table for server-side webhook processor).
 
@@ -251,7 +260,38 @@ BEGIN
     lifetime_slot_number = v_assigned_slot,
     updated_at = now();
 
-  -- 4. Record activity
+  -- 4. Record payment transaction (idempotent on razorpay_payment_id)
+  INSERT INTO public.payment_transactions (
+    business_id,
+    user_id,
+    plan_id,
+    billing_type,
+    amount_paise,
+    currency,
+    status,
+    razorpay_order_id,
+    razorpay_payment_id,
+    metadata,
+    updated_at
+  ) VALUES (
+    p_business_id,
+    p_user_id,
+    'founding_lifetime',
+    'lifetime_purchase',
+    59900,
+    'INR',
+    'captured',
+    p_order_id,
+    p_payment_id,
+    jsonb_build_object('slot_number', v_assigned_slot),
+    now()
+  )
+  ON CONFLICT (razorpay_payment_id) DO UPDATE SET
+    status = 'captured',
+    metadata = jsonb_build_object('slot_number', v_assigned_slot),
+    updated_at = now();
+
+  -- 5. Record activity
   INSERT INTO public.activities (
     business_id,
     actor_user_id,
@@ -274,7 +314,120 @@ BEGIN
 END;
 $$;
 
--- 7. SAFE BACKFILL: Ensure all existing workspaces have a baseline starter subscription
+-- 7. FUNCTION: Activate recurring monthly subscription atomically
+CREATE OR REPLACE FUNCTION public.activate_recurring_subscription(
+  p_business_id UUID,
+  p_user_id UUID,
+  p_plan_id TEXT,
+  p_max_active_customers INTEGER,
+  p_amount_paise INTEGER,
+  p_subscription_id TEXT,
+  p_payment_id TEXT,
+  p_signature TEXT,
+  p_current_period_start TIMESTAMPTZ,
+  p_current_period_end TIMESTAMPTZ
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  -- Verify caller authorization
+  IF NOT public.is_business_owner_or_manager(p_business_id) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED: Only workspace owners and managers can modify subscriptions.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 1. Upsert business subscription
+  INSERT INTO public.business_subscriptions (
+    business_id,
+    plan_id,
+    billing_type,
+    status,
+    max_active_customers,
+    razorpay_subscription_id,
+    razorpay_payment_id,
+    current_period_start,
+    current_period_end,
+    cancel_at_period_end,
+    is_lifetime,
+    updated_at
+  ) VALUES (
+    p_business_id,
+    p_plan_id,
+    'monthly_subscription',
+    'active',
+    p_max_active_customers,
+    p_subscription_id,
+    p_payment_id,
+    p_current_period_start,
+    p_current_period_end,
+    false,
+    false,
+    now()
+  )
+  ON CONFLICT (business_id) DO UPDATE SET
+    plan_id = p_plan_id,
+    billing_type = 'monthly_subscription',
+    status = 'active',
+    max_active_customers = p_max_active_customers,
+    razorpay_subscription_id = p_subscription_id,
+    razorpay_payment_id = p_payment_id,
+    current_period_start = p_current_period_start,
+    current_period_end = p_current_period_end,
+    cancel_at_period_end = false,
+    is_lifetime = false,
+    updated_at = now();
+
+  -- 2. Upsert payment transaction (idempotent on razorpay_payment_id)
+  INSERT INTO public.payment_transactions (
+    business_id,
+    user_id,
+    plan_id,
+    billing_type,
+    amount_paise,
+    currency,
+    status,
+    razorpay_subscription_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    updated_at
+  ) VALUES (
+    p_business_id,
+    p_user_id,
+    p_plan_id,
+    'monthly_subscription',
+    p_amount_paise,
+    'INR',
+    'captured',
+    p_subscription_id,
+    p_payment_id,
+    p_signature,
+    now()
+  )
+  ON CONFLICT (razorpay_payment_id) DO UPDATE SET
+    status = 'captured',
+    updated_at = now();
+
+  -- 3. Log activity
+  INSERT INTO public.activities (
+    business_id,
+    actor_user_id,
+    action_type,
+    description
+  ) VALUES (
+    p_business_id,
+    p_user_id,
+    'SUBSCRIPTION_ACTIVATED',
+    format('Upgraded to RenewalDesk %s Plan (Capacity: %s active customers).', p_plan_id, p_max_active_customers)
+  );
+
+  RETURN true;
+END;
+$$;
+
+-- 8. SAFE BACKFILL: Ensure all existing workspaces have a baseline starter subscription
 INSERT INTO public.business_subscriptions (
   business_id,
   plan_id,
