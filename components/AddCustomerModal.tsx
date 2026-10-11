@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { IntervalUnit } from '@/lib/types';
-import { X, UserPlus, Sparkles, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { X, UserPlus, Sparkles, Clock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -151,6 +151,17 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
             <div className="flex-1">
               <p className="font-bold text-red-900">Unable to save customer</p>
               <p className="text-red-700 mt-0.5">{submitError}</p>
+              {(submitError.toLowerCase().includes('capacity') || submitError.toLowerCase().includes('limit')) && (
+                <div className="pt-2">
+                  <a
+                    href="/pricing"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs"
+                  >
+                    <span>Upgrade Plan Capacity</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         )}
