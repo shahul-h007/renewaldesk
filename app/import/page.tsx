@@ -35,6 +35,10 @@ export default function ImportPage() {
   const [validRows, setValidRows] = useState<ParsedCSVRow[]>([]);
   const [invalidRows, setInvalidRows] = useState<ParsedCSVRow[]>([]);
   const [importedCount, setImportedCount] = useState<number | null>(null);
+  const [importFailedCount, setImportFailedCount] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importWarning, setImportWarning] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,12 +83,34 @@ export default function ImportPage() {
     setStep(3);
   };
 
-  const handleConfirmImport = () => {
-    const count = importCustomersFromCSV(validRows);
-    setImportedCount(count);
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 1800);
+  const handleConfirmImport = async () => {
+    if (isImporting || validRows.length === 0) return;
+    setIsImporting(true);
+    setImportError(null);
+    setImportWarning(null);
+
+    try {
+      const result = await importCustomersFromCSV(validRows);
+      if (!result.success) {
+        setImportError(result.error || 'The import did not complete. No success has been reported.');
+        return;
+      }
+
+      setImportedCount(result.count);
+      setImportFailedCount(result.failedCount || 0);
+      setImportWarning(result.warning || null);
+      if (result.error && result.failedCount) {
+        setImportWarning(result.error);
+      }
+
+      if ((result.failedCount || 0) === 0 && !result.warning) {
+        setTimeout(() => router.push('/dashboard'), 1800);
+      }
+    } catch (err: any) {
+      setImportError(err?.message || 'Unexpected import error. Refresh the customer list before retrying.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -322,16 +348,31 @@ export default function ImportPage() {
         {step === 3 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-6 shadow-xs">
             {importedCount !== null ? (
-              <div className="py-12 text-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
-                  <CheckCircle2 className="w-8 h-8" />
+              <div className="py-12 text-center space-y-4">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${importFailedCount > 0 || importWarning ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-600'}`}>
+                  {importFailedCount > 0 || importWarning ? <AlertTriangle className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">
-                  Successfully imported {importedCount} customers!
+                  {importFailedCount > 0 ? `Imported ${importedCount}; ${importFailedCount} failed` : `Successfully imported ${importedCount} customers!`}
                 </h2>
-                <p className="text-xs text-gray-500">
-                  Redirecting you to the follow-up queue now...
-                </p>
+                {importWarning ? (
+                  <div className="max-w-2xl mx-auto rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                    {importWarning}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    {importFailedCount === 0 ? 'Redirecting you to the follow-up queue now...' : 'Some rows were not imported. Review the message below before attempting any retry.'}
+                  </p>
+                )}
+                {(importFailedCount > 0 || importWarning) && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/customers')}
+                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700"
+                  >
+                    Review Customer Directory
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -341,6 +382,13 @@ export default function ImportPage() {
                     Review your records before adding them to your live follow-up queue.
                   </p>
                 </div>
+
+                {importError && (
+                  <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                    <strong className="block mb-1">Import failed</strong>
+                    {importError}
+                  </div>
+                )}
 
                 {/* Validation Status Cards */}
                 <div className="grid grid-cols-2 gap-4">
@@ -388,11 +436,11 @@ export default function ImportPage() {
                   </button>
                   <button
                     onClick={handleConfirmImport}
-                    disabled={validRows.length === 0}
+                    disabled={validRows.length === 0 || isImporting}
                     className="px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 shadow-sm"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Import {validRows.length} Customers to RenewalDesk
+                    {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {isImporting ? 'Saving customers...' : `Import ${validRows.length} Customers to RenewalDesk`}
                   </button>
                 </div>
               </>
