@@ -317,12 +317,17 @@ console.log('\n--- Suite 5: SQL Migration File & Security Definer Integrity ---'
   assert.ok(migrationSql.includes('founding_lifetime_seat_claim_lock'), 'pg_advisory_xact_lock must be used for concurrency protection');
   assert.ok(migrationSql.includes('check_customer_capacity'), 'check_customer_capacity RPC must be defined');
 
+  // Verify function security and role restriction
+  assert.ok(migrationSql.includes('REVOKE EXECUTE ON FUNCTION public.activate_recurring_subscription'), 'Execute privilege must be revoked from PUBLIC');
+  assert.ok(migrationSql.includes('GRANT EXECUTE ON FUNCTION public.activate_recurring_subscription'), 'Execute privilege must be granted to authenticated and service_role');
+  assert.ok(migrationSql.includes('PAYMENT_CROSS_TENANT_VIOLATION'), 'Cross-tenant payment protection must be enforced in SQL functions');
+
   // Verify strict lifetime partial unique index
   assert.ok(migrationSql.includes('idx_subscriptions_lifetime_slot'), 'Unique partial index for lifetime slots must exist');
   assert.ok(migrationSql.includes("WHERE is_lifetime = true AND status = 'active'"), 'Lifetime slot index must only apply to active lifetime plans');
   assert.ok(migrationSql.includes('generate_series(1, 25)'), 'Must assign slots using generate_series(1, 25) to prevent gaps/collisions');
   assert.ok(migrationSql.includes('SAFE BACKFILL'), 'Must include safe backfill for existing business workspaces');
-  console.log('  ✔ Migration SQL file contains required tables, RLS write policies, advisory locks, collision-free slot assignment, and existing business backfill');
+  console.log('  ✔ Migration SQL file contains required tables, RLS write policies, security definer privilege boundaries, cross-tenant fraud guards, and backfills');
 }
 
 // ==========================================

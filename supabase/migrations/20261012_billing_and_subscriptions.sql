@@ -179,13 +179,75 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_caller_id UUID;
+  v_effective_user_id UUID;
+  v_is_service_role BOOLEAN;
   v_current_slots INTEGER;
   v_assigned_slot INTEGER;
+  v_existing_tx RECORD;
 BEGIN
   -- Obtain advisory transaction lock to guarantee strictly serialized slot claims
   PERFORM pg_advisory_xact_lock(hashtext('founding_lifetime_seat_claim_lock'));
 
-  -- 1. Check if this business already has an active lifetime slot
+  -- 1. Input parameter validation
+  IF p_business_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: business_id is required.' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_payment_id IS NULL OR length(trim(p_payment_id)) < 5 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: A valid razorpay_payment_id is required.' USING ERRCODE = '22023';
+  END IF;
+
+  -- 2. Authorization boundary & caller identity resolution
+  v_caller_id := auth.uid();
+  v_is_service_role := (current_setting('request.jwt.claim.role', true) = 'service_role');
+
+  IF v_is_service_role THEN
+    v_effective_user_id := COALESCE(p_user_id, v_caller_id);
+  ELSIF v_caller_id IS NOT NULL THEN
+    v_effective_user_id := v_caller_id;
+    IF NOT public.is_business_owner_or_manager(p_business_id) THEN
+      RAISE EXCEPTION 'UNAUTHORIZED: Caller is not an authorized owner or manager of this workspace.'
+        USING ERRCODE = '42501';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to claim lifetime slots.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 3. Cross-tenant payment protection
+  IF EXISTS (
+    SELECT 1 FROM public.business_subscriptions
+    WHERE razorpay_payment_id = p_payment_id
+      AND business_id <> p_business_id
+  ) THEN
+    RAISE EXCEPTION 'PAYMENT_CROSS_TENANT_VIOLATION: Payment ID % is already assigned to another workspace.', p_payment_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT pt.business_id, pt.plan_id, pt.amount_paise, pt.currency
+  INTO v_existing_tx
+  FROM public.payment_transactions pt
+  WHERE pt.razorpay_payment_id = p_payment_id;
+
+  IF FOUND THEN
+    IF v_existing_tx.business_id <> p_business_id THEN
+      RAISE EXCEPTION 'PAYMENT_CROSS_TENANT_VIOLATION: Payment ID % belongs to another workspace.', p_payment_id
+        USING ERRCODE = '42501';
+    END IF;
+
+    IF v_existing_tx.amount_paise <> 59900 THEN
+      RAISE EXCEPTION 'PAYMENT_AMOUNT_MISMATCH: Lifetime plan requires 59900 paise, recorded amount was %.', v_existing_tx.amount_paise
+        USING ERRCODE = '22000';
+    END IF;
+
+    IF v_existing_tx.currency <> 'INR' THEN
+      RAISE EXCEPTION 'PAYMENT_CURRENCY_MISMATCH: Invalid currency %.', v_existing_tx.currency
+        USING ERRCODE = '22000';
+    END IF;
+  END IF;
+
+  -- 4. Check if this business already has an active lifetime slot
   SELECT lifetime_slot_number INTO v_assigned_slot
   FROM public.business_subscriptions
   WHERE business_id = p_business_id
@@ -193,11 +255,10 @@ BEGIN
     AND status = 'active';
 
   IF FOUND AND v_assigned_slot IS NOT NULL THEN
-    -- Already claimed for this business; return existing slot number
     RETURN v_assigned_slot;
   END IF;
 
-  -- 2. Count existing claimed active lifetime slots
+  -- 5. Count existing claimed active lifetime slots
   SELECT count(*)::INTEGER INTO v_current_slots
   FROM public.business_subscriptions
   WHERE is_lifetime = true
@@ -225,7 +286,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- 3. Upsert subscription record
+  -- 6. Upsert subscription record
   INSERT INTO public.business_subscriptions (
     business_id,
     plan_id,
@@ -260,7 +321,7 @@ BEGIN
     lifetime_slot_number = v_assigned_slot,
     updated_at = now();
 
-  -- 4. Record payment transaction (idempotent on razorpay_payment_id)
+  -- 7. Record payment transaction (idempotent on razorpay_payment_id)
   INSERT INTO public.payment_transactions (
     business_id,
     user_id,
@@ -275,7 +336,7 @@ BEGIN
     updated_at
   ) VALUES (
     p_business_id,
-    p_user_id,
+    v_effective_user_id,
     'founding_lifetime',
     'lifetime_purchase',
     59900,
@@ -291,28 +352,35 @@ BEGIN
     metadata = jsonb_build_object('slot_number', v_assigned_slot),
     updated_at = now();
 
-  -- 5. Record activity
-  INSERT INTO public.activities (
-    business_id,
-    actor_user_id,
-    action_type,
-    description,
-    metadata
-  ) VALUES (
-    p_business_id,
-    p_user_id,
-    'LIFETIME_PLAN_ACTIVATED',
-    format('Activated Founding Lifetime Plan (Slot #%s of 25) with 100 active customer capacity.', v_assigned_slot),
-    jsonb_build_object(
-      'slot_number', v_assigned_slot,
-      'order_id', p_order_id,
-      'payment_id', p_payment_id
-    )
-  );
+  -- 8. Record activity (isolated from transaction rollback)
+  BEGIN
+    INSERT INTO public.activities (
+      business_id,
+      actor_user_id,
+      action_type,
+      description,
+      metadata
+    ) VALUES (
+      p_business_id,
+      v_effective_user_id,
+      'LIFETIME_PLAN_ACTIVATED',
+      format('Activated Founding Lifetime Plan (Slot #%s of 25) with 100 active customer capacity.', v_assigned_slot),
+      jsonb_build_object(
+        'slot_number', v_assigned_slot,
+        'order_id', p_order_id,
+        'payment_id', p_payment_id
+      )
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'ACTIVITIES_LOG_FAILED: %', SQLERRM;
+  END;
 
   RETURN v_assigned_slot;
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.claim_founding_lifetime_slot(UUID, UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_founding_lifetime_slot(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;
 
 -- 7. FUNCTION: Activate recurring monthly subscription atomically
 CREATE OR REPLACE FUNCTION public.activate_recurring_subscription(
@@ -332,14 +400,90 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_caller_id UUID;
+  v_effective_user_id UUID;
+  v_is_service_role BOOLEAN;
+  v_existing_tx RECORD;
 BEGIN
-  -- Verify caller authorization
-  IF NOT public.is_business_owner_or_manager(p_business_id) THEN
-    RAISE EXCEPTION 'UNAUTHORIZED: Only workspace owners and managers can modify subscriptions.'
+  -- 1. Input parameter validation
+  IF p_business_id IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: business_id is required.' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_plan_id NOT IN ('starter', 'business', 'business_growth', 'business_scale', 'large_business') THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: plan_id % is invalid.', p_plan_id USING ERRCODE = '22023';
+  END IF;
+
+  IF p_max_active_customers IS NULL OR p_max_active_customers <= 0 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: max_active_customers must be greater than zero.' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_amount_paise IS NULL OR p_amount_paise <= 0 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: amount_paise must be greater than zero.' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_payment_id IS NULL OR length(trim(p_payment_id)) < 5 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: A valid razorpay_payment_id is required.' USING ERRCODE = '22023';
+  END IF;
+
+  -- 2. Authorization boundary & caller identity resolution
+  v_caller_id := auth.uid();
+  v_is_service_role := (current_setting('request.jwt.claim.role', true) = 'service_role');
+
+  IF v_is_service_role THEN
+    v_effective_user_id := COALESCE(p_user_id, v_caller_id);
+  ELSIF v_caller_id IS NOT NULL THEN
+    v_effective_user_id := v_caller_id;
+    IF NOT public.is_business_owner_or_manager(p_business_id) THEN
+      RAISE EXCEPTION 'UNAUTHORIZED: Caller is not an authorized owner or manager of this workspace.'
+        USING ERRCODE = '42501';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to activate subscriptions.'
       USING ERRCODE = '42501';
   END IF;
 
-  -- 1. Upsert business subscription
+  -- 3. Cross-tenant payment protection & fraud validation
+  IF EXISTS (
+    SELECT 1 FROM public.business_subscriptions
+    WHERE razorpay_payment_id = p_payment_id
+      AND business_id <> p_business_id
+  ) THEN
+    RAISE EXCEPTION 'PAYMENT_CROSS_TENANT_VIOLATION: Payment ID % is already assigned to a different workspace.', p_payment_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT pt.business_id, pt.plan_id, pt.amount_paise, pt.currency
+  INTO v_existing_tx
+  FROM public.payment_transactions pt
+  WHERE pt.razorpay_payment_id = p_payment_id;
+
+  IF FOUND THEN
+    IF v_existing_tx.business_id <> p_business_id THEN
+      RAISE EXCEPTION 'PAYMENT_CROSS_TENANT_VIOLATION: Payment ID % was processed for another workspace.', p_payment_id
+        USING ERRCODE = '42501';
+    END IF;
+
+    IF v_existing_tx.amount_paise <> p_amount_paise THEN
+      RAISE EXCEPTION 'PAYMENT_AMOUNT_MISMATCH: Recorded payment amount % does not match requested plan price %.',
+        v_existing_tx.amount_paise, p_amount_paise
+        USING ERRCODE = '22000';
+    END IF;
+
+    IF v_existing_tx.currency <> 'INR' THEN
+      RAISE EXCEPTION 'PAYMENT_CURRENCY_MISMATCH: Invalid payment currency %.', v_existing_tx.currency
+        USING ERRCODE = '22000';
+    END IF;
+
+    IF v_existing_tx.plan_id <> p_plan_id THEN
+      RAISE EXCEPTION 'PAYMENT_PLAN_MISMATCH: Payment was recorded for plan %, not %.',
+        v_existing_tx.plan_id, p_plan_id
+        USING ERRCODE = '22000';
+    END IF;
+  END IF;
+
+  -- 4. Atomically upsert business subscription entitlement
   INSERT INTO public.business_subscriptions (
     business_id,
     plan_id,
@@ -361,8 +505,8 @@ BEGIN
     p_max_active_customers,
     p_subscription_id,
     p_payment_id,
-    p_current_period_start,
-    p_current_period_end,
+    COALESCE(p_current_period_start, now()),
+    COALESCE(p_current_period_end, now() + interval '30 days'),
     false,
     false,
     now()
@@ -374,13 +518,13 @@ BEGIN
     max_active_customers = p_max_active_customers,
     razorpay_subscription_id = p_subscription_id,
     razorpay_payment_id = p_payment_id,
-    current_period_start = p_current_period_start,
-    current_period_end = p_current_period_end,
+    current_period_start = COALESCE(p_current_period_start, public.business_subscriptions.current_period_start, now()),
+    current_period_end = COALESCE(p_current_period_end, public.business_subscriptions.current_period_end, now() + interval '30 days'),
     cancel_at_period_end = false,
     is_lifetime = false,
     updated_at = now();
 
-  -- 2. Upsert payment transaction (idempotent on razorpay_payment_id)
+  -- 5. Atomically upsert payment transaction
   INSERT INTO public.payment_transactions (
     business_id,
     user_id,
@@ -395,7 +539,7 @@ BEGIN
     updated_at
   ) VALUES (
     p_business_id,
-    p_user_id,
+    v_effective_user_id,
     p_plan_id,
     'monthly_subscription',
     p_amount_paise,
@@ -410,22 +554,41 @@ BEGIN
     status = 'captured',
     updated_at = now();
 
-  -- 3. Log activity
-  INSERT INTO public.activities (
-    business_id,
-    actor_user_id,
-    action_type,
-    description
-  ) VALUES (
-    p_business_id,
-    p_user_id,
-    'SUBSCRIPTION_ACTIVATED',
-    format('Upgraded to RenewalDesk %s Plan (Capacity: %s active customers).', p_plan_id, p_max_active_customers)
-  );
+  -- 6. Log activity audit trail (isolated from transaction rollback)
+  BEGIN
+    INSERT INTO public.activities (
+      business_id,
+      actor_user_id,
+      action_type,
+      description,
+      metadata
+    ) VALUES (
+      p_business_id,
+      v_effective_user_id,
+      'SUBSCRIPTION_ACTIVATED',
+      format('Upgraded to RenewalDesk %s Plan (Capacity: %s active customers).', p_plan_id, p_max_active_customers),
+      jsonb_build_object(
+        'plan_id', p_plan_id,
+        'max_active_customers', p_max_active_customers,
+        'amount_paise', p_amount_paise,
+        'payment_id', p_payment_id,
+        'subscription_id', p_subscription_id
+      )
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'ACTIVITIES_LOG_FAILED: %', SQLERRM;
+  END;
 
   RETURN true;
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.activate_recurring_subscription(
+  UUID, UUID, TEXT, INTEGER, INTEGER, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.activate_recurring_subscription(
+  UUID, UUID, TEXT, INTEGER, INTEGER, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ
+) TO authenticated, service_role;
 
 -- 8. SAFE BACKFILL: Ensure all existing workspaces have a baseline starter subscription
 INSERT INTO public.business_subscriptions (
