@@ -14,7 +14,7 @@ interface TopHeaderProps {
 
 export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
   const { resetDemoData, isDatabaseMode, isLoadingDb, dbError } = useRenewalDesk();
-  const { isLoading: isAuthLoading, isConfigured } = useAuth();
+  const { isLoading: isAuthLoading, isConfigured, authError, user } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -27,7 +27,12 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
         <div className="flex items-center gap-2.5">
           {/* Status Badge */}
-          {dbError ? (
+          {authError ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200" title={authError}>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Account Error
+            </span>
+          ) : dbError ? (
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200" title={dbError}>
               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
               Database Error
@@ -46,6 +51,10 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Supabase Cloud
+            </span>
+          ) : isConfigured && user ? (
+            <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Your business workspace is not connected yet. Complete onboarding or retry account lookup.">
+              Workspace Pending
             </span>
           ) : (
             <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
