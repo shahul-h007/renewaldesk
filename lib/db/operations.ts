@@ -242,7 +242,7 @@ export async function createCustomerInDb(
  */
 export async function updateCustomerInDb(businessId: string, customer: Customer) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('customers')
     .update({
       name: customer.name.trim(),
