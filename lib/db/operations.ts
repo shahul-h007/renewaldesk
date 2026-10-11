@@ -254,9 +254,12 @@ export async function updateCustomerInDb(businessId: string, customer: Customer)
       updated_at: new Date().toISOString(),
     })
     .eq('id', customer.id)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Customer was not found in this workspace or cannot be updated.');
 }
 
 /**
@@ -266,19 +269,22 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
   const supabase = createClient();
   
   // 1. Mark customer as archived
-  const { error: custErr } = await supabase
+  const { data: archivedCustomer, error: custErr } = await supabase
     .from('customers')
     .update({
       archived_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', customerId)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (custErr) throw custErr;
+  if (!archivedCustomer) throw new Error('Customer was not found in this workspace or cannot be archived.');
 
   // 2. Mark active schedules as cancelled
-  await supabase
+  const { error: scheduleErr } = await supabase
     .from('service_schedules')
     .update({
       status: 'CANCELLED',
@@ -286,6 +292,8 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
     })
     .eq('customer_id', customerId)
     .eq('business_id', businessId);
+
+  if (scheduleErr) throw scheduleErr;
 
   // 3. Log activity
   await supabase.from('activities').insert({
@@ -371,13 +379,16 @@ export async function updateFollowUpStatusInDb(
     updates.booked_at = new Date().toISOString();
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('reminders')
     .update(updates)
     .eq('business_id', businessId)
-    .eq('schedule_id', scheduleId);
+    .eq('schedule_id', scheduleId)
+    .select('id')
+    .limit(1);
 
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error('No reminder was found for this service cycle in the active workspace.');
 }
 
 /**
@@ -645,16 +656,19 @@ export async function toggleServiceTypeStatusInDb(businessId: string, id: string
  */
 export async function updateMessageTemplateInDb(businessId: string, template: WhatsAppTemplate) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('message_templates')
     .update({
       message_body: template.templateText,
       updated_at: new Date().toISOString(),
     })
     .eq('id', template.id)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Message template was not found in this workspace or cannot be updated.');
 }
 
 /**
@@ -662,7 +676,7 @@ export async function updateMessageTemplateInDb(businessId: string, template: Wh
  */
 export async function updateBusinessInDb(businessId: string, biz: BusinessProfile) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('businesses')
     .update({
       name: biz.name.trim(),
@@ -673,9 +687,12 @@ export async function updateBusinessInDb(businessId: string, biz: BusinessProfil
       default_interval_months: biz.defaultIntervalMonths,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', businessId);
+    .eq('id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Business profile was not found or cannot be updated.');
 }
 
 /**
