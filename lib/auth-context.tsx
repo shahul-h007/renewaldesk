@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from './supabase/client';
 import { isSupabaseConfigured } from './supabase/config';
@@ -48,11 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [businesses, setBusinesses] = useState<BusinessContext[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const lastResolvedUserIdRef = useRef<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
   const fetchUserAndBusiness = useCallback(async (currentUser: User | null) => {
     if (!configured || !currentUser) {
+      lastResolvedUserIdRef.current = null;
       setUser(null);
       setProfile(null);
       setBusiness(null);
@@ -60,6 +62,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthError(null);
       setIsLoading(false);
       return;
+    }
+
+    // Clear the prior tenant immediately when the signed-in account changes.
+    // Keep current data in place for same-user token refreshes to avoid UI flicker.
+    if (lastResolvedUserIdRef.current !== currentUser.id) {
+      lastResolvedUserIdRef.current = currentUser.id;
+      setIsLoading(true);
+      setProfile(null);
+      setBusiness(null);
+      setBusinesses([]);
+      setAuthError(null);
     }
 
     try {
@@ -140,6 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: any) {
       console.error('Error fetching user context:', err);
+      setProfile(null);
+      setBusinesses([]);
+      setBusiness(null);
       setAuthError(err.message || 'Unexpected error fetching user context');
     } finally {
       setIsLoading(false);
