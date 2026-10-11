@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
@@ -28,6 +28,22 @@ export default function TemplatesPage() {
   const [editedText, setEditedText] = useState<string>(templates[0]?.templateText || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('sample');
+
+  // Cloud templates load after auth. Select a real workspace template when available,
+  // rather than leaving the editor attached to an old demo ID with a blank message.
+  useEffect(() => {
+    if (templates.length === 0) {
+      setActiveTemplateId('');
+      setEditedText('');
+      return;
+    }
+
+    const selected = templates.find((template) => template.id === activeTemplateId);
+    if (!selected) {
+      setActiveTemplateId(templates[0].id);
+      setEditedText(templates[0].templateText);
+    }
+  }, [templates, activeTemplateId]);
 
   if (isCloudLoading) {
     return (
