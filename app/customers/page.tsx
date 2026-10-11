@@ -24,7 +24,7 @@ export default function CustomersPage() {
   const [activeWhatsApp, setActiveWhatsApp] = useState<{ customer: Customer; asset?: Asset; service?: ServiceRecord } | null>(null);
   const [activeComplete, setActiveComplete] = useState<{ customer: Customer; asset?: Asset; service?: ServiceRecord } | null>(null);
 
-  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+  const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   if (isCloudLoading) {
     return (
