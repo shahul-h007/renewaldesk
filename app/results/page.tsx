@@ -2,13 +2,39 @@
 
 import React from 'react';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { formatReadableDate } from '@/lib/due-date-engine';
 import { DollarSign, CheckCircle2, MessageSquare, Calendar, TrendingUp, Sparkles, ArrowRight } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
 export default function ResultsPage() {
-  const { services, customers, business } = useRenewalDesk();
+  const { services, customers, business, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { isConfigured, isLoading: isAuthLoading } = useAuth();
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="Recovered Revenue & ROI"
+        subtitle="Track the exact money recovered by bringing past customers back for repeat service."
+      >
+        <div className="space-y-6 animate-pulse">
+          <div className="h-44 bg-gray-200 rounded-3xl" />
+          <div className="h-80 bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+            <div className="h-6 w-48 bg-gray-200 rounded" />
+            <div className="h-4 w-72 bg-gray-100 rounded" />
+            <div className="space-y-3 pt-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-10 bg-gray-100 rounded-xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   // Calculation of funnel stages
   const totalDue = services.length;

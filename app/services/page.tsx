@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { ServiceTypeModal } from '@/components/ServiceTypeModal';
 import { ServiceCatalogItem } from '@/lib/types';
@@ -19,11 +20,36 @@ import {
 } from 'lucide-react';
 
 export default function ServicesPage() {
-  const { catalog, business, services, toggleServiceTypeStatus } = useRenewalDesk();
+  const { catalog, business, services, toggleServiceTypeStatus, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { isConfigured, isLoading: isAuthLoading } = useAuth();
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
 
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ServiceCatalogItem | null>(null);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="Service Types & Recurrence Cycles"
+        subtitle="Define default repeat intervals (cadence) and standard prices for your services."
+      >
+        <div className="space-y-6 animate-pulse">
+          <div className="h-10 w-48 bg-gray-200 rounded-lg" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-40 bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+                <div className="h-4 w-36 bg-gray-200 rounded" />
+                <div className="h-3 w-48 bg-gray-100 rounded" />
+                <div className="h-5 w-24 bg-gray-100 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   const activeCount = catalog.filter(c => c.isActive !== false).length;
   const inactiveCount = catalog.filter(c => c.isActive === false).length;

@@ -7,8 +7,8 @@ import { AppShell } from '@/components/AppShell';
 import { Building2, Save, Check, RotateCcw, ShieldCheck, Cloud, Database, AlertCircle } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { business, updateBusiness, resetDemoData, isDatabaseMode } = useRenewalDesk();
-  const { user, isConfigured } = useAuth();
+  const { business, updateBusiness, resetDemoData, isDatabaseMode, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { user, isConfigured, isLoading: isAuthLoading } = useAuth();
 
   const [name, setName] = useState(business.name);
   const [phone, setPhone] = useState(business.phone);
@@ -16,6 +16,39 @@ export default function SettingsPage() {
   const [industry, setIndustry] = useState(business.industry);
   const [interval, setInterval] = useState(business.defaultIntervalMonths);
   const [saved, setSaved] = useState(false);
+
+  React.useEffect(() => {
+    if (business.name) {
+      setName(business.name);
+      setPhone(business.phone);
+      setCity(business.city);
+      setIndustry(business.industry);
+      setInterval(business.defaultIntervalMonths);
+    }
+  }, [business]);
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="Settings & Business Profile"
+        subtitle="Configure your service company details, contact number, and default reminder settings."
+      >
+        <div className="max-w-3xl space-y-6 animate-pulse">
+          <div className="h-96 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-4">
+            <div className="h-6 w-40 bg-gray-200 rounded" />
+            <div className="h-4 w-72 bg-gray-100 rounded" />
+            <div className="grid grid-cols-2 gap-4 pt-4">
+              <div className="h-10 bg-gray-100 rounded-lg" />
+              <div className="h-10 bg-gray-100 rounded-lg" />
+            </div>
+          </div>
+          <div className="h-60 bg-white rounded-2xl border border-gray-200 p-6" />
+        </div>
+      </AppShell>
+    );
+  }
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();

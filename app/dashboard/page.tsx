@@ -7,15 +7,17 @@ import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
-import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles, RefreshCw } from 'lucide-react';
+import { AddCustomerModal } from '@/components/AddCustomerModal';
+import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles, RefreshCw, Users, Plus } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { services, customers, assets, business, isDatabaseMode, isLoadingDb, dbError, reloadFromDb } = useRenewalDesk();
+  const { services, customers, assets, business, isDatabaseMode, isLoadingDb, isLoaded, dbError, reloadFromDb } = useRenewalDesk();
   const { user, business: authBiz, isConfigured, isLoading: isAuthLoading, authError } = useAuth();
   const [activeTab, setActiveTab] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'WEEK' | 'COMPLETED'>('OVERDUE');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // If user is authenticated in cloud mode but has no business account yet, redirect to onboarding
   useEffect(() => {
@@ -65,6 +67,19 @@ export default function DashboardPage() {
     if (b.urgency === 'OVERDUE' && a.urgency !== 'OVERDUE') return 1;
     return a.nextDueDate.localeCompare(b.nextDueDate);
   });
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="Daily Follow-up Queue"
+        subtitle="Find customers due for service, send WhatsApp, and secure bookings."
+      >
+        <DashboardSkeleton />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
@@ -297,6 +312,36 @@ export default function DashboardPage() {
                   />
                 );
               })
+            ) : customers.length === 0 ? (
+              <div className="py-16 text-center px-4 space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
+                  <Users className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-gray-900">
+                    No customers in your workspace yet
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                    Start by adding your first customer or importing an existing customer list via CSV to track upcoming renewal cycles and send WhatsApp follow-ups.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add First Customer</span>
+                  </button>
+                  <Link
+                    href="/import"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import Customer CSV</span>
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="py-16 text-center px-4 space-y-3">
                 <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
@@ -345,6 +390,56 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      <AddCustomerModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </AppShell>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* KPI Cards Grid Skeleton */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-16 bg-gray-200 rounded" />
+              <div className="w-8 h-8 rounded-lg bg-gray-100" />
+            </div>
+            <div className="h-8 w-14 bg-gray-200 rounded" />
+            <div className="h-2.5 w-32 bg-gray-100 rounded" />
+          </div>
+        ))}
+      </div>
+
+      {/* Action Queue Skeleton */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-8 w-24 bg-gray-100 rounded-lg" />
+            ))}
+          </div>
+          <div className="h-8 w-60 bg-gray-100 rounded-lg" />
+        </div>
+        <div className="divide-y divide-gray-100">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="p-5 flex items-center justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <div className="h-4 w-40 bg-gray-200 rounded" />
+                <div className="h-3 w-28 bg-gray-100 rounded" />
+              </div>
+              <div className="h-4 w-32 bg-gray-100 rounded hidden sm:block" />
+              <div className="h-6 w-20 bg-gray-100 rounded-full" />
+              <div className="h-8 w-24 bg-gray-200 rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -13,8 +13,8 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
-  const { resetDemoData, isDatabaseMode, isLoadingDb } = useRenewalDesk();
-  const { isLoading: isAuthLoading } = useAuth();
+  const { resetDemoData, isDatabaseMode, isLoadingDb, dbError } = useRenewalDesk();
+  const { isLoading: isAuthLoading, isConfigured } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -27,15 +27,25 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
         <div className="flex items-center gap-2.5">
           {/* Status Badge */}
-          {isAuthLoading || isLoadingDb ? (
+          {dbError ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200" title={dbError}>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Database Error
+            </span>
+          ) : isConfigured && isAuthLoading ? (
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              Syncing Cloud...
+              Connecting...
+            </span>
+          ) : isConfigured && isLoadingDb ? (
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              Loading records...
             </span>
           ) : isDatabaseMode ? (
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              PostgreSQL Cloud
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Supabase Cloud
             </span>
           ) : (
             <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">

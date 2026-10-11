@@ -112,71 +112,81 @@ export async function createCustomerInDb(
 
   if (custErr) throw custErr;
 
-  // 2. Insert asset
-  const { data: assetRow, error: assetErr } = await supabase
-    .from('assets')
-    .insert({
+  try {
+    // 2. Insert asset
+    const { data: assetRow, error: assetErr } = await supabase
+      .from('assets')
+      .insert({
+        business_id: businessId,
+        customer_id: customerRow.id,
+        asset_type: assetData.name || 'Air Conditioner',
+        capacity: assetData.capacity || null,
+        location: assetData.location || null,
+      })
+      .select()
+      .single();
+
+    if (assetErr) throw assetErr;
+
+    // 3. Find service type if available
+    const { data: serviceTypeRow } = await supabase
+      .from('service_types')
+      .select('id')
+      .eq('business_id', businessId)
+      .ilike('name', serviceData.serviceName.trim())
+      .maybeSingle();
+
+    // 4. Insert service schedule
+    const { data: scheduleRow, error: schedErr } = await supabase
+      .from('service_schedules')
+      .insert({
+        business_id: businessId,
+        customer_id: customerRow.id,
+        asset_id: assetRow.id,
+        service_type_id: serviceTypeRow?.id || null,
+        service_name: serviceData.serviceName,
+        last_service_date: serviceData.lastServiceDate || null,
+        next_due_date: serviceData.nextDueDate,
+        interval_value: serviceData.intervalValue || serviceData.intervalMonths || 6,
+        interval_unit: serviceData.intervalUnit || 'MONTHS',
+        status: 'ACTIVE',
+      })
+      .select()
+      .single();
+
+    if (schedErr) throw schedErr;
+
+    // 5. Insert initial reminder
+    const { error: remindErr } = await supabase
+      .from('reminders')
+      .insert({
+        business_id: businessId,
+        customer_id: customerRow.id,
+        schedule_id: scheduleRow.id,
+        due_date: serviceData.nextDueDate,
+        status: 'NOT_CONTACTED',
+      });
+
+    if (remindErr) throw remindErr;
+
+    // 6. Log activity
+    await supabase.from('activities').insert({
       business_id: businessId,
       customer_id: customerRow.id,
-      asset_type: assetData.name || 'Air Conditioner',
-      capacity: assetData.capacity || null,
-      location: assetData.location || null,
-    })
-    .select()
-    .single();
-
-  if (assetErr) throw assetErr;
-
-  // 3. Find service type if available
-  const { data: serviceTypeRow } = await supabase
-    .from('service_types')
-    .select('id')
-    .eq('business_id', businessId)
-    .ilike('name', serviceData.serviceName.trim())
-    .maybeSingle();
-
-  // 4. Insert service schedule
-  const { data: scheduleRow, error: schedErr } = await supabase
-    .from('service_schedules')
-    .insert({
-      business_id: businessId,
-      customer_id: customerRow.id,
-      asset_id: assetRow.id,
-      service_type_id: serviceTypeRow?.id || null,
-      service_name: serviceData.serviceName,
-      last_service_date: serviceData.lastServiceDate || null,
-      next_due_date: serviceData.nextDueDate,
-      interval_value: serviceData.intervalValue || serviceData.intervalMonths || 6,
-      interval_unit: serviceData.intervalUnit || 'MONTHS',
-      status: 'ACTIVE',
-    })
-    .select()
-    .single();
-
-  if (schedErr) throw schedErr;
-
-  // 5. Insert initial reminder
-  const { error: remindErr } = await supabase
-    .from('reminders')
-    .insert({
-      business_id: businessId,
-      customer_id: customerRow.id,
-      schedule_id: scheduleRow.id,
-      due_date: serviceData.nextDueDate,
-      status: 'NOT_CONTACTED',
+      action_type: 'CUSTOMER_CREATED',
+      description: `Added customer ${customerRow.name} with ${scheduleRow.service_name} due on ${scheduleRow.next_due_date}`,
     });
 
-  if (remindErr) throw remindErr;
-
-  // 6. Log activity
-  await supabase.from('activities').insert({
-    business_id: businessId,
-    customer_id: customerRow.id,
-    action_type: 'CUSTOMER_CREATED',
-    description: `Added customer ${customerRow.name} with ${scheduleRow.service_name} due on ${scheduleRow.next_due_date}`,
-  });
-
-  return { customerRow, assetRow, scheduleRow };
+    return { customerRow, assetRow, scheduleRow };
+  } catch (err) {
+    // Clean up created customer record to avoid leaving an orphaned customer without asset/schedule
+    try {
+      await supabase.from('customers').delete().eq('id', customerRow.id);
+    } catch (cleanupErr) {
+      console.warn('Failed to clean up customer record after insert failure:', cleanupErr);
+    }
+    throw err;
+  }
 }
 
 /**

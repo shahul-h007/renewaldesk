@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { interpolateTemplate } from '@/lib/whatsapp';
 import { WhatsAppTemplate } from '@/lib/types';
@@ -18,11 +19,31 @@ const DEFAULT_SAMPLE_CUSTOMER = {
 };
 
 export default function TemplatesPage() {
-  const { templates, updateTemplate, business, customers, assets, services } = useRenewalDesk();
+  const { templates, updateTemplate, business, customers, assets, services, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { isConfigured, isLoading: isAuthLoading } = useAuth();
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templates[0]?.id || 'tpl-overdue');
   const [editedText, setEditedText] = useState<string>(templates[0]?.templateText || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('sample');
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="WhatsApp Message Templates"
+        subtitle="Customise 1-click WhatsApp renewal messages with customer and appliance tags."
+      >
+        <div className="space-y-6 animate-pulse">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 h-96 bg-white border border-gray-200 rounded-2xl p-6" />
+            <div className="lg:col-span-5 h-96 bg-white border border-gray-200 rounded-2xl p-6" />
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   const activeTemplate = templates.find(t => t.id === activeTemplateId) || templates[0];
 

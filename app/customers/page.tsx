@@ -1,23 +1,41 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { calculateDueStatus, formatReadableDate } from '@/lib/due-date-engine';
 import { UrgencyBadge, StatusBadge } from '@/components/Badge';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { CompleteServiceModal } from '@/components/CompleteServiceModal';
-import { Search, UserPlus, Phone, MessageSquare, Trash2, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
+import { AddCustomerModal } from '@/components/AddCustomerModal';
+import { Search, UserPlus, Phone, MessageSquare, Trash2, CheckCircle2, ChevronRight, AlertCircle, Plus, Upload, Users } from 'lucide-react';
 import { Customer, Asset, ServiceRecord } from '@/lib/types';
 
 export default function CustomersPage() {
-  const { customers, assets, services, deleteCustomer, business } = useRenewalDesk();
+  const { customers, assets, services, deleteCustomer, business, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { isConfigured, isLoading: isAuthLoading } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // WhatsApp & Complete Modals state
   const [activeWhatsApp, setActiveWhatsApp] = useState<{ customer: Customer; asset?: Asset; service?: ServiceRecord } | null>(null);
   const [activeComplete, setActiveComplete] = useState<{ customer: Customer; asset?: Asset; service?: ServiceRecord } | null>(null);
+
+  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+
+  if (isCloudLoading) {
+    return (
+      <AppShell
+        title="Customer Directory"
+        subtitle="Manage registered customers, appliances, and renewal cycles."
+      >
+        <CustomersSkeleton />
+      </AppShell>
+    );
+  }
 
   const filteredCustomers = customers.filter(c => {
     const q = search.toLowerCase();
@@ -166,6 +184,36 @@ export default function CustomersPage() {
                   </div>
                 );
               })
+            ) : customers.length === 0 ? (
+              <div className="py-16 text-center px-4 space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
+                  <Users className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-gray-900">
+                    No customers registered yet
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                    Add your first customer to track their appliances, service schedules, and renewal cycles.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Customer</span>
+                  </button>
+                  <Link
+                    href="/import"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import CSV</span>
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="py-12 text-center text-gray-500 text-xs">
                 No customers found matching &quot;{search}&quot;
@@ -196,6 +244,42 @@ export default function CustomersPage() {
           service={activeComplete.service}
         />
       )}
+
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </AppShell>
+  );
+}
+
+function CustomersSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs flex items-center justify-between">
+        <div className="h-9 w-72 bg-gray-100 rounded-lg" />
+        <div className="h-4 w-28 bg-gray-100 rounded" />
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="h-11 bg-gray-50 border-b border-gray-200" />
+        <div className="divide-y divide-gray-100">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="p-4 sm:px-6 sm:py-4.5 flex items-center justify-between gap-4">
+              <div className="space-y-1.5 w-1/3">
+                <div className="h-4 w-32 bg-gray-200 rounded" />
+                <div className="h-3 w-44 bg-gray-100 rounded" />
+              </div>
+              <div className="h-4 w-28 bg-gray-100 rounded hidden sm:block w-1/4" />
+              <div className="h-5 w-24 bg-gray-100 rounded-full w-1/4" />
+              <div className="flex gap-2 justify-end">
+                <div className="w-7 h-7 bg-gray-100 rounded-lg" />
+                <div className="w-7 h-7 bg-gray-100 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

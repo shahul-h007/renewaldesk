@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { IntervalUnit } from '@/lib/types';
-import { X, UserPlus, Sparkles, Clock } from 'lucide-react';
+import { X, UserPlus, Sparkles, Clock, AlertCircle, Loader2 } from 'lucide-react';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -40,6 +40,9 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const [nextDueDate, setNextDueDate] = useState(() => calculateNextDueDate(sixMonthsAgo(), defaultItem?.intervalValue ?? 6, defaultItem?.intervalUnit ?? 'MONTHS'));
   const [serviceAmount, setServiceAmount] = useState(defaultItem?.typicalPrice ?? 1200);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleServiceTypeChange = (selectedName: string) => {
@@ -69,35 +72,53 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone) return;
+    if (!name.trim() || !phone.trim() || isSubmitting) return;
 
-    addCustomer(
-      {
-        name,
-        phone,
-        address,
-        locality,
-      },
-      {
-        name: assetName,
-        capacity,
-        location,
-      },
-      {
-        serviceName,
-        lastServiceDate,
-        nextDueDate,
-        intervalMonths: intervalUnit === 'YEARS' ? intervalValue * 12 : (intervalUnit === 'DAYS' ? Math.max(1, Math.round(intervalValue / 30)) : intervalValue),
-        intervalValue,
-        intervalUnit,
-        serviceAmount: Number(serviceAmount),
-        followUpStatus: 'NOT_CONTACTED',
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await addCustomer(
+        {
+          name: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          locality: locality.trim(),
+        },
+        {
+          name: assetName.trim(),
+          capacity: capacity.trim(),
+          location: location.trim(),
+        },
+        {
+          serviceName: serviceName.trim(),
+          lastServiceDate,
+          nextDueDate,
+          intervalMonths: intervalUnit === 'YEARS' ? intervalValue * 12 : (intervalUnit === 'DAYS' ? Math.max(1, Math.round(intervalValue / 30)) : intervalValue),
+          intervalValue,
+          intervalUnit,
+          serviceAmount: Number(serviceAmount),
+          followUpStatus: 'NOT_CONTACTED',
+        }
+      );
+
+      if (res.success) {
+        setName('');
+        setPhone('');
+        setAddress('');
+        setLocality('Kochi');
+        setSubmitError(null);
+        onClose();
+      } else {
+        setSubmitError(res.error || 'Failed to save customer to cloud database.');
       }
-    );
-
-    onClose();
+    } catch (err: any) {
+      setSubmitError(err?.message || 'An unexpected error occurred while saving.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -116,11 +137,23 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Error Banner */}
+        {submitError && (
+          <div className="mx-6 mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2.5 shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold text-red-900">Unable to save customer</p>
+              <p className="text-red-700 mt-0.5">{submitError}</p>
+            </div>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
@@ -282,15 +315,24 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-800 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+              disabled={isSubmitting || !name.trim() || !phone.trim()}
+              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed shadow-sm transition-all flex items-center gap-2"
             >
-              Save Customer & Start Cycle
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving Customer...</span>
+                </>
+              ) : (
+                <span>Save Customer & Start Cycle</span>
+              )}
             </button>
           </div>
         </form>

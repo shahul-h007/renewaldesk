@@ -23,8 +23,8 @@ import {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { services, business, isDatabaseMode, isLoadingDb } = useRenewalDesk();
-  const { user, signOut, isLoading: isAuthLoading } = useAuth();
+  const { services, business, isDatabaseMode, isLoadingDb, dbError } = useRenewalDesk();
+  const { user, business: authBiz, signOut, isLoading: isAuthLoading, isConfigured } = useAuth();
 
   // Calculate live count of Overdue items needing urgent attention
   const overdueCount = services.filter(s => s.urgency === 'OVERDUE' && s.followUpStatus !== 'COMPLETED').length;
@@ -106,16 +106,36 @@ export function Sidebar() {
       <div className="p-3 border-t border-gray-100 bg-gray-50/70">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
-              {business.name.slice(0, 2).toUpperCase()}
-            </div>
+            {isConfigured && isAuthLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                {(business.name || authBiz?.name || (isConfigured ? 'RD' : 'KC')).slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-gray-900 truncate">{business.name}</p>
+              {isConfigured && isAuthLoading ? (
+                <div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse mb-1.5" />
+              ) : (
+                <p className="text-xs font-semibold text-gray-900 truncate">
+                  {business.name || authBiz?.name || (isConfigured ? 'My Workspace' : 'Kochi Chill AC Care')}
+                </p>
+              )}
               <div className="flex items-center gap-1 text-[10px]">
-                {isAuthLoading || isLoadingDb ? (
+                {dbError ? (
+                  <span className="text-red-600 font-semibold flex items-center gap-0.5">
+                    <Cloud className="w-3 h-3 text-red-500" />
+                    Database Error
+                  </span>
+                ) : isConfigured && isAuthLoading ? (
                   <span className="text-blue-600 font-medium flex items-center gap-0.5">
                     <Cloud className="w-3 h-3 text-blue-500 animate-pulse" />
                     Connecting...
+                  </span>
+                ) : isConfigured && isLoadingDb ? (
+                  <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                    <Cloud className="w-3 h-3 text-blue-500 animate-pulse" />
+                    Loading records...
                   </span>
                 ) : isDatabaseMode ? (
                   <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
