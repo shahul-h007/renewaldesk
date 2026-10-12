@@ -222,11 +222,10 @@ REVOKE ALL ON FUNCTION public.start_free_trial(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.start_free_trial(UUID) TO authenticated, service_role;
 
 -- 3. UPDATED CHECK_CUSTOMER_CAPACITY FUNCTION
--- Enforces:
--- 1. If trial not started: 0 capacity allowed; block customer additions.
--- 2. If trial active and within 14 days: capacity up to 25 active customers.
--- 3. If trial expired (now() >= trial_expires_at): 0 additions allowed; marks expired.
--- 4. If paid/lifetime: enforces paid customer limit.
+-- PostgreSQL requires dropping the existing function when changing the OUT parameters / return row type
+DROP FUNCTION IF EXISTS public.check_customer_capacity(UUID, INTEGER);
+DROP FUNCTION IF EXISTS public.check_customer_capacity(UUID);
+
 CREATE OR REPLACE FUNCTION public.check_customer_capacity(
   p_business_id UUID,
   p_incoming_count INTEGER DEFAULT 1
