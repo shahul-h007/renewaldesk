@@ -27,6 +27,24 @@ export interface BillingPlan {
 
 export const FOUNDING_LIFETIME_MAX_SLOTS = 25;
 export const DEFAULT_TRIAL_CUSTOMER_LIMIT = 25;
+export const FREE_TRIAL_DURATION_DAYS = 14;
+export const FREE_TRIAL_MAX_CUSTOMERS = 25;
+
+export type TrialStatus = 'not_started' | 'active' | 'expired' | 'converted';
+
+export interface TrialInfo {
+  status: TrialStatus;
+  isActive: boolean;
+  isExpired: boolean;
+  isConverted: boolean;
+  isNotStarted: boolean;
+  startedAt: string | null;
+  expiresAt: string | null;
+  daysRemaining: number;
+  hoursRemaining: number;
+  countdownLabel: string;
+  canStartTrial: boolean;
+}
 
 export const PLANS: Record<BillingPlanId, BillingPlan> = {
   starter: {
@@ -129,4 +147,118 @@ export function getActiveCustomerLimit(planId: string | null | undefined): numbe
 
 export function getPlanEnvKey(planId: BillingPlanId): string | null {
   return PLANS[planId]?.planIdEnvKey || null;
+}
+
+export function getTrialInfo(sub: {
+  trial_status?: string | null;
+  trial_started_at?: string | null;
+  trial_expires_at?: string | null;
+  status?: string | null;
+  is_lifetime?: boolean | null;
+  billing_type?: string | null;
+} | null): TrialInfo {
+  // If workspace has an active paid plan or lifetime purchase, it is converted
+  if (
+    sub &&
+    sub.status === 'active' &&
+    (sub.is_lifetime ||
+      sub.billing_type === 'monthly_subscription' ||
+      sub.billing_type === 'lifetime_purchase')
+  ) {
+    return {
+      status: 'converted',
+      isActive: false,
+      isExpired: false,
+      isConverted: true,
+      isNotStarted: false,
+      startedAt: sub.trial_started_at || null,
+      expiresAt: sub.trial_expires_at || null,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      countdownLabel: 'Active Plan',
+      canStartTrial: false,
+    };
+  }
+
+  const rawStatus = (sub?.trial_status as TrialStatus) || 'not_started';
+  const startedAt = sub?.trial_started_at || null;
+  const expiresAt = sub?.trial_expires_at || null;
+
+  if (!sub || rawStatus === 'not_started' || !startedAt || !expiresAt) {
+    return {
+      status: 'not_started',
+      isActive: false,
+      isExpired: false,
+      isConverted: false,
+      isNotStarted: true,
+      startedAt: null,
+      expiresAt: null,
+      daysRemaining: FREE_TRIAL_DURATION_DAYS,
+      hoursRemaining: FREE_TRIAL_DURATION_DAYS * 24,
+      countdownLabel: 'Not Started',
+      canStartTrial: true,
+    };
+  }
+
+  if (rawStatus === 'converted') {
+    return {
+      status: 'converted',
+      isActive: false,
+      isExpired: false,
+      isConverted: true,
+      isNotStarted: false,
+      startedAt,
+      expiresAt,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      countdownLabel: 'Active Plan',
+      canStartTrial: false,
+    };
+  }
+
+  // Calculate remaining time against authoritative database timestamp
+  const now = Date.now();
+  const expiresTime = new Date(expiresAt).getTime();
+  const diffMs = expiresTime - now;
+
+  if (diffMs <= 0 || rawStatus === 'expired' || sub.status === 'expired') {
+    return {
+      status: 'expired',
+      isActive: false,
+      isExpired: true,
+      isConverted: false,
+      isNotStarted: false,
+      startedAt,
+      expiresAt,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      countdownLabel: 'Trial expired',
+      canStartTrial: false,
+    };
+  }
+
+  // Active trial countdown calculation
+  const hours = Math.max(1, Math.ceil(diffMs / (60 * 60 * 1000)));
+  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+
+  let countdownLabel: string;
+  if (diffMs < 24 * 60 * 60 * 1000) {
+    countdownLabel = 'Trial expires today';
+  } else {
+    countdownLabel = `${days} days left`;
+  }
+
+  return {
+    status: 'active',
+    isActive: true,
+    isExpired: false,
+    isConverted: false,
+    isNotStarted: false,
+    startedAt,
+    expiresAt,
+    daysRemaining: days,
+    hoursRemaining: hours,
+    countdownLabel,
+    canStartTrial: false,
+  };
 }

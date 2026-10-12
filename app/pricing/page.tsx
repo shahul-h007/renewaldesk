@@ -31,6 +31,8 @@ export default function PricingPage() {
 
   const [lifetimeSlotsClaimed, setLifetimeSlotsClaimed] = useState<number>(0);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [trialInfo, setTrialInfo] = useState<any>(null);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export default function PricingPage() {
             const data = await res.json();
             setActivePlanId(data?.usage?.planId || null);
             setLifetimeSlotsClaimed(data?.lifetimeSlotsClaimed || 0);
+            setTrialInfo(data?.trial || null);
           }
         } catch (e) {
           console.error('Failed to load billing usage', e);
@@ -56,6 +59,38 @@ export default function PricingPage() {
     }
     loadUsage();
   }, [authBiz]);
+
+  const handleStartTrial = async () => {
+    if (!user) {
+      router.push('/login?redirectTo=/pricing');
+      return;
+    }
+    if (!authBiz) {
+      router.push('/onboarding');
+      return;
+    }
+    setIsStartingTrial(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch('/api/billing/trial/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: authBiz.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to start free trial.');
+      }
+      setSuccessMessage('14-Day Free Trial activated! Redirecting to your dashboard...');
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Unable to activate trial.');
+    } finally {
+      setIsStartingTrial(false);
+    }
+  };
 
   const handleSelectPlan = async (plan: BillingPlan) => {
     if (processingPlanId) return;
@@ -309,6 +344,81 @@ export default function PricingPage() {
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto">
             Every plan includes RenewalDesk’s complete feature set—WhatsApp click-to-chat links, automatic service recurrence calculation, multi-appliance customer profiles, and Excel imports. Choose the active-customer capacity that fits your operation.
+          </p>
+        </div>
+
+        {/* 14-Day Free Trial Tier Card */}
+        <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-amber-50/70 p-6 sm:p-8 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>14-Day Free Trial — ₹0</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                Try RenewalDesk Free for 14 Days
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Experience full core features with up to 25 active customers. No credit card required, zero upfront payment, and no automatic charge when your trial ends.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-700 pt-1">
+                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" /> 14 Days Full Access</span>
+                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" /> Up to 25 Active Customers</span>
+                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" /> WhatsApp Reminders & Recurrence</span>
+                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" /> No Auto-Charge at Expiry</span>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {trialInfo?.isActive ? (
+                <div className="flex flex-col items-center sm:items-end gap-1">
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    Active Trial ({trialInfo.countdownLabel})
+                  </span>
+                  <span className="text-[11px] text-slate-500">Choose a plan below to upgrade</span>
+                </div>
+              ) : trialInfo?.isExpired ? (
+                <div className="flex flex-col items-center sm:items-end gap-1">
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    Trial Expired
+                  </span>
+                  <span className="text-[11px] text-slate-500">Select a paid plan below</span>
+                </div>
+              ) : activePlanId && activePlanId !== 'starter' && activePlanId !== 'not_started' && activePlanId !== 'free_trial' ? (
+                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  On Paid Plan
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartTrial}
+                  disabled={isStartingTrial}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md transition-all disabled:opacity-50"
+                >
+                  {isStartingTrial ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Activating Trial...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Start 14-Day Free Trial</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Section Heading: Monthly & Lifetime Plans */}
+        <div className="pt-4 border-t border-slate-200">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            Paid Plans & Founding Lifetime Offer
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Choose your active customer capacity. Upgrade anytime without losing existing customer data.
           </p>
         </div>
 

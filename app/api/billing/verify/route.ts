@@ -205,6 +205,7 @@ export async function POST(request: Request) {
             razorpay_order_id: orderId || null,
             razorpay_payment_id: paymentId,
             is_lifetime: true,
+            trial_status: 'converted',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'business_id' });
 
@@ -284,6 +285,7 @@ export async function POST(request: Request) {
           current_period_end: currentPeriodEnd,
           cancel_at_period_end: false,
           is_lifetime: false,
+          trial_status: 'converted',
           updated_at: new Date().toISOString(),
         }, { onConflict: 'business_id' });
 
