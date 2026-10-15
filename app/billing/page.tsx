@@ -16,6 +16,7 @@ import {
   XCircle,
   RefreshCw,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
@@ -27,6 +28,7 @@ export default function BillingPage() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activatingTrial, setActivatingTrial] = useState(false);
 
   const fetchBillingData = useCallback(async () => {
     if (!authBiz?.id) return;
@@ -47,6 +49,28 @@ export default function BillingPage() {
   useEffect(() => {
     fetchBillingData();
   }, [fetchBillingData]);
+
+  const handleStartTrial = async () => {
+    if (!authBiz?.id) return;
+    setActivatingTrial(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch('/api/billing/trial/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: authBiz.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to start free trial.');
+      }
+      await fetchBillingData();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Unable to start trial.');
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
 
   const handleCancelSubscription = async () => {
     if (!confirm('Are you sure you want to cancel your monthly subscription? You will retain access until the end of your paid billing cycle.')) {
@@ -78,15 +102,16 @@ export default function BillingPage() {
   const usage = data?.usage || {
     activeCount: 0,
     archivedCount: 0,
-    maxCapacity: 25,
-    remainingCapacity: 25,
+    maxCapacity: 0,
+    remainingCapacity: 0,
     isAtCapacity: false,
-    planId: 'starter',
-    planName: 'Starter (Trial)',
+    planId: 'not_started',
+    planName: 'Trial Not Started',
     isLifetime: false,
-    status: 'trialing',
+    status: 'incomplete',
   };
 
+  const trial = data?.trial;
   const sub = data?.subscription;
   const isOwner = data?.role === 'owner';
   const percentage = Math.min(100, Math.round((usage.activeCount / Math.max(1, usage.maxCapacity)) * 100));
@@ -122,10 +147,30 @@ export default function BillingPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-6">
             <div>
               <div className="flex items-center gap-2.5">
-                <h2 className="text-xl font-bold text-gray-900">{usage.planName} Plan</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {trial && !trial.isConverted ? (
+                    trial.isNotStarted
+                      ? '14-Day Free Trial (Not Activated)'
+                      : trial.isExpired
+                      ? '14-Day Free Trial (Expired)'
+                      : '14-Day Free Trial'
+                  ) : (
+                    `${usage.planName} Plan`
+                  )}
+                </h2>
                 {usage.isLifetime ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200">
                     Founding Lifetime {sub?.lifetime_slot_number ? `(Seat #${sub.lifetime_slot_number})` : ''}
+                  </span>
+                ) : trial && !trial.isConverted ? (
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    trial.isNotStarted
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : trial.isExpired
+                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                      : 'bg-blue-100 text-blue-800 border border-blue-200'
+                  }`}>
+                    {trial.countdownLabel}
                   </span>
                 ) : (
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -133,13 +178,19 @@ export default function BillingPage() {
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       : 'bg-blue-100 text-blue-800 border border-blue-200'
                   }`}>
-                    {usage.status === 'active' ? 'Active' : 'Trialing / Standard'}
+                    {usage.status === 'active' ? 'Active' : 'Standard'}
                   </span>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {usage.isLifetime
                   ? 'One-time payment active. No recurring fees while RenewalDesk service operates.'
+                  : trial && !trial.isConverted
+                  ? trial.isNotStarted
+                    ? 'Start your trial to unlock 25 active customers for 14 days. No credit card required.'
+                    : trial.isExpired
+                    ? 'Your trial expired. All customer records are preserved, but adding new customers is paused.'
+                    : `Active trial expires on ${new Date(trial.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. No auto-charge.`
                   : sub?.current_period_end
                   ? `Renews on ${new Date(sub.current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                   : 'Monthly recurring subscription.'}
@@ -147,13 +198,35 @@ export default function BillingPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
-              >
-                <span>Upgrade / Change Plan</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              {trial && trial.isNotStarted ? (
+                isOwner && (
+                  <button
+                    onClick={handleStartTrial}
+                    disabled={activatingTrial}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm transition-all disabled:opacity-50"
+                  >
+                    {activatingTrial ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Activating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Start 14-Day Free Trial</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                )
+              ) : (
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+                >
+                  <span>{trial && trial.isExpired ? 'Choose a Paid Plan' : 'Upgrade / Change Plan'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              )}
             </div>
           </div>
 
@@ -186,8 +259,27 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* Warning Banner when near or at capacity */}
-          {usage.isAtCapacity && (
+          {/* Warning Banner when near or at capacity, or expired */}
+          {trial?.isExpired ? (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-bold">Free Trial Expired</p>
+                <p className="text-rose-800 leading-relaxed">
+                  Your 14-day trial has concluded. All your historical customer and service records are preserved and readable, but creating or importing new customers is paused. Choose a paid plan to resume adding customers.
+                </p>
+                <div className="pt-2">
+                  <Link
+                    href="/pricing"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] shadow-xs"
+                  >
+                    <span>Choose a Paid Plan</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : usage.isAtCapacity && usage.maxCapacity > 0 ? (
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="flex-1 space-y-1">
@@ -206,7 +298,7 @@ export default function BillingPage() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Cancellation section for monthly plans */}
           {!usage.isLifetime && sub?.status === 'active' && !sub?.cancel_at_period_end && isOwner && (
@@ -236,7 +328,7 @@ export default function BillingPage() {
         {/* Feature Entitlements Guarantee */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3 shadow-xs">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            All Features Included Across Plans
+            All Features Included Across Plans & Trial
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-700 pt-1">
             <div className="flex items-center gap-2">

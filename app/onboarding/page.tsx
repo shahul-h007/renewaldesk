@@ -27,6 +27,7 @@ export default function OnboardingPage() {
   const [city, setCity] = useState('Kochi');
   const [timezone] = useState('Asia/Kolkata');
   const [currency] = useState('₹');
+  const [startTrialNow, setStartTrialNow] = useState(true);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +95,17 @@ export default function OnboardingPage() {
 
         if (data && data.id) {
           localStorage.setItem('rd_active_biz_id', data.id);
+          if (startTrialNow) {
+            try {
+              await fetch('/api/billing/trial/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ businessId: data.id }),
+              });
+            } catch (trialErr) {
+              console.warn('Could not auto-start trial on onboarding:', trialErr);
+            }
+          }
         }
 
         await refreshBusinessContext();
@@ -266,6 +278,26 @@ export default function OnboardingPage() {
                 <li>5 pre-configured WhatsApp follow-up templates ready for outreach</li>
                 <li>Live conversion & revenue recovery reporting</li>
               </ul>
+            </div>
+
+            {/* 14-Day Free Trial Choice */}
+            <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2 mt-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={startTrialNow}
+                  onChange={(e) => setStartTrialNow(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div className="space-y-1">
+                  <span className="font-bold text-amber-950 block text-xs">
+                    Start 14-Day Free Trial (Recommended)
+                  </span>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Free for 14 days • Up to 25 active customers • Full access to core features • No payment details needed • No auto-charge at expiry
+                  </p>
+                </div>
+              </label>
             </div>
 
             <button

@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getPlanById, PLANS, FOUNDING_LIFETIME_MAX_SLOTS, DEFAULT_TRIAL_CUSTOMER_LIMIT } from '@/lib/billing/plans';
+import {
+  getPlanById,
+  PLANS,
+  FOUNDING_LIFETIME_MAX_SLOTS,
+  FREE_TRIAL_MAX_CUSTOMERS,
+  getTrialInfo,
+} from '@/lib/billing/plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,15 +67,57 @@ export async function GET(request: Request) {
 
     const active = activeCount ?? 0;
     const archived = archivedCount ?? 0;
-    const planId = sub?.plan_id || 'starter';
-    const plan = getPlanById(planId) || PLANS.starter;
-    const maxCapacity = sub?.max_active_customers || plan.maxActiveCustomers || DEFAULT_TRIAL_CUSTOMER_LIMIT;
-    const remainingCapacity = Math.max(0, maxCapacity - active);
-    const isAtCapacity = active >= maxCapacity;
-    const isOverCapacity = active > maxCapacity;
+
+    // 4. Resolve trial status using authoritative helper
+    const trialInfo = getTrialInfo(sub);
+
+    let planId = 'not_started';
+    let planName = 'Trial Not Started';
+    let maxCapacity = 0;
+    let remainingCapacity = 0;
+    let isTrial = true;
+
+    if (
+      sub &&
+      sub.status === 'active' &&
+      (sub.is_lifetime ||
+        sub.billing_type === 'monthly_subscription' ||
+        sub.billing_type === 'lifetime_purchase')
+    ) {
+      // Paid plan or Founding Lifetime
+      const paidPlan = getPlanById(sub.plan_id) || PLANS.starter;
+      planId = paidPlan.id;
+      planName = paidPlan.name;
+      maxCapacity = sub.max_active_customers || paidPlan.maxActiveCustomers;
+      remainingCapacity = Math.max(0, maxCapacity - active);
+      isTrial = false;
+    } else if (trialInfo.isNotStarted) {
+      planId = 'not_started';
+      planName = 'Trial Not Started';
+      maxCapacity = 0;
+      remainingCapacity = 0;
+      isTrial = true;
+    } else if (trialInfo.isExpired) {
+      planId = 'free_trial';
+      planName = 'Free Trial (Expired)';
+      maxCapacity = FREE_TRIAL_MAX_CUSTOMERS;
+      remainingCapacity = 0; // Expired trial blocks new additions
+      isTrial = true;
+    } else {
+      // Active trial
+      planId = 'free_trial';
+      planName = '14-Day Free Trial';
+      maxCapacity = FREE_TRIAL_MAX_CUSTOMERS;
+      remainingCapacity = Math.max(0, maxCapacity - active);
+      isTrial = true;
+    }
+
+    const isAtCapacity = maxCapacity > 0 ? active >= maxCapacity : true;
+    const isOverCapacity = maxCapacity > 0 ? active > maxCapacity : false;
 
     return NextResponse.json({
       subscription: sub || null,
+      trial: trialInfo,
       usage: {
         activeCount: active,
         archivedCount: archived,
@@ -77,10 +125,17 @@ export async function GET(request: Request) {
         remainingCapacity,
         isAtCapacity,
         isOverCapacity,
-        planId: plan.id,
-        planName: plan.name,
+        planId,
+        planName,
         isLifetime: sub?.is_lifetime || false,
-        status: sub?.status || 'trialing',
+        isTrial,
+        isTrialActive: trialInfo.isActive,
+        isTrialExpired: trialInfo.isExpired,
+        isTrialNotStarted: trialInfo.isNotStarted,
+        countdownLabel: trialInfo.countdownLabel,
+        daysRemaining: trialInfo.daysRemaining,
+        trialExpiresAt: trialInfo.expiresAt,
+        status: sub?.status || (trialInfo.isNotStarted ? 'incomplete' : 'trialing'),
         currentPeriodEnd: sub?.current_period_end || null,
         cancelAtPeriodEnd: sub?.cancel_at_period_end || false,
       },

@@ -97,6 +97,7 @@ export async function POST(request: Request) {
               current_period_end: currentEnd,
               cancel_at_period_end: false,
               is_lifetime: false,
+              trial_status: 'converted',
               updated_at: new Date().toISOString(),
             }, { onConflict: 'business_id' });
 

@@ -151,13 +151,19 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
             <div className="flex-1">
               <p className="font-bold text-red-900">Unable to save customer</p>
               <p className="text-red-700 mt-0.5">{submitError}</p>
-              {(submitError.toLowerCase().includes('capacity') || submitError.toLowerCase().includes('limit')) && (
+              {(submitError.toLowerCase().includes('capacity') ||
+                submitError.toLowerCase().includes('limit') ||
+                submitError.toLowerCase().includes('trial')) && (
                 <div className="pt-2">
                   <a
                     href="/pricing"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs"
                   >
-                    <span>Upgrade Plan Capacity</span>
+                    <span>
+                      {submitError.toLowerCase().includes('start')
+                        ? 'Start 14-Day Free Trial'
+                        : 'Upgrade Plan'}
+                    </span>
                     <ArrowRight className="w-3 h-3" />
                   </a>
                 </div>

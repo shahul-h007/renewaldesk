@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
+import { TrialBanner } from '@/components/TrialBanner';
 import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles, RefreshCw, Users, Plus } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
@@ -18,6 +19,23 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'WEEK' | 'COMPLETED'>('OVERDUE');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [billingUsage, setBillingUsage] = useState<any>(null);
+
+  const fetchUsage = React.useCallback(() => {
+    if (!authBiz?.id) return;
+    fetch(`/api/billing/usage?businessId=${authBiz.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setBillingUsage(data);
+        }
+      })
+      .catch((err) => console.warn('Could not load billing usage on dashboard:', err));
+  }, [authBiz?.id]);
+
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
 
   // If user is authenticated in cloud mode but has no business account yet, redirect to onboarding
   useEffect(() => {
@@ -110,6 +128,18 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+        )}
+
+        {/* 14-Day Free Trial Banner */}
+        {billingUsage?.trial && (
+          <TrialBanner
+            businessId={authBiz?.id}
+            isOwner={billingUsage.role === 'owner'}
+            trial={billingUsage.trial}
+            activeCount={billingUsage.usage?.activeCount ?? customers.length}
+            maxCapacity={billingUsage.usage?.maxCapacity ?? 25}
+            onTrialStarted={() => fetchUsage()}
+          />
         )}
 
         {/* KPI Cards Grid */}
