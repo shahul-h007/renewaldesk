@@ -33,6 +33,10 @@ export async function fetchBusinessData(businessId: string) {
   if (schedRes.error) throw schedRes.error;
   if (remindRes.error) throw remindRes.error;
   if (tplRes.error) throw tplRes.error;
+  if (bizRes.error) throw bizRes.error;
+  if (!bizRes.data) {
+    throw new Error('The active business workspace could not be found. Please sign in again or select a valid workspace.');
+  }
 
   const dbCustomers: DbCustomer[] = custRes.data || [];
   const dbAssets: DbAsset[] = assetRes.data || [];
@@ -112,9 +116,12 @@ export async function createCustomerInDb(
 
   if (custErr) throw custErr;
 
+  let assetRow: any = null;
+  let scheduleRow: any = null;
+
   try {
     // 2. Insert asset
-    const { data: assetRow, error: assetErr } = await supabase
+    const { data: createdAsset, error: assetErr } = await supabase
       .from('assets')
       .insert({
         business_id: businessId,
@@ -127,6 +134,7 @@ export async function createCustomerInDb(
       .single();
 
     if (assetErr) throw assetErr;
+    assetRow = createdAsset;
 
     // 3. Find service type if available
     const { data: serviceTypeRow } = await supabase
@@ -137,7 +145,7 @@ export async function createCustomerInDb(
       .maybeSingle();
 
     // 4. Insert service schedule
-    const { data: scheduleRow, error: schedErr } = await supabase
+    const { data: createdSchedule, error: schedErr } = await supabase
       .from('service_schedules')
       .insert({
         business_id: businessId,
@@ -155,6 +163,7 @@ export async function createCustomerInDb(
       .single();
 
     if (schedErr) throw schedErr;
+    scheduleRow = createdSchedule;
 
     // 5. Insert initial reminder
     const { error: remindErr } = await supabase
@@ -179,11 +188,50 @@ export async function createCustomerInDb(
 
     return { customerRow, assetRow, scheduleRow };
   } catch (err) {
-    // Clean up created customer record to avoid leaving an orphaned customer without asset/schedule
+    // Best-effort compensating cleanup in reverse dependency order. Client-side
+    // Supabase calls cannot provide a multi-table transaction, so report any
+    // cleanup failure rather than silently claiming rollback was complete.
+    const cleanupErrors: string[] = [];
+
     try {
-      await supabase.from('customers').delete().eq('id', customerRow.id);
-    } catch (cleanupErr) {
-      console.warn('Failed to clean up customer record after insert failure:', cleanupErr);
+      if (scheduleRow?.id) {
+        const { error } = await supabase
+          .from('reminders')
+          .delete()
+          .eq('schedule_id', scheduleRow.id)
+          .eq('business_id', businessId);
+        if (error) cleanupErrors.push(`reminders: ${error.message}`);
+
+        const { error: scheduleDeleteError } = await supabase
+          .from('service_schedules')
+          .delete()
+          .eq('id', scheduleRow.id)
+          .eq('business_id', businessId);
+        if (scheduleDeleteError) cleanupErrors.push(`service schedule: ${scheduleDeleteError.message}`);
+      }
+
+      if (assetRow?.id) {
+        const { error } = await supabase
+          .from('assets')
+          .delete()
+          .eq('id', assetRow.id)
+          .eq('business_id', businessId);
+        if (error) cleanupErrors.push(`asset: ${error.message}`);
+      }
+
+      const { error: customerDeleteError } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerRow.id)
+        .eq('business_id', businessId);
+      if (customerDeleteError) cleanupErrors.push(`customer: ${customerDeleteError.message}`);
+    } catch (cleanupError: any) {
+      cleanupErrors.push(cleanupError?.message || 'Unexpected cleanup failure');
+    }
+
+    if (cleanupErrors.length > 0) {
+      const originalMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`${originalMessage}. Cleanup may be incomplete; refresh the workspace and review this customer before retrying. ${cleanupErrors.join('; ')}`);
     }
     throw err;
   }
@@ -194,7 +242,7 @@ export async function createCustomerInDb(
  */
 export async function updateCustomerInDb(businessId: string, customer: Customer) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('customers')
     .update({
       name: customer.name.trim(),
@@ -206,9 +254,12 @@ export async function updateCustomerInDb(businessId: string, customer: Customer)
       updated_at: new Date().toISOString(),
     })
     .eq('id', customer.id)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Customer was not found in this workspace or cannot be updated.');
 }
 
 /**
@@ -218,19 +269,22 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
   const supabase = createClient();
   
   // 1. Mark customer as archived
-  const { error: custErr } = await supabase
+  const { data: archivedCustomer, error: custErr } = await supabase
     .from('customers')
     .update({
       archived_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', customerId)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (custErr) throw custErr;
+  if (!archivedCustomer) throw new Error('Customer was not found in this workspace or cannot be archived.');
 
   // 2. Mark active schedules as cancelled
-  await supabase
+  const { error: scheduleErr } = await supabase
     .from('service_schedules')
     .update({
       status: 'CANCELLED',
@@ -238,6 +292,8 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
     })
     .eq('customer_id', customerId)
     .eq('business_id', businessId);
+
+  if (scheduleErr) throw scheduleErr;
 
   // 3. Log activity
   await supabase.from('activities').insert({
@@ -251,35 +307,56 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
 /**
  * Bulk import normalized customers, assets, and service schedules from CSV rows into the database.
  */
-export async function importCustomersFromCSVInDb(businessId: string, validRows: any[]): Promise<number> {
+export interface CsvImportOutcome {
+  importedCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
+export async function importCustomersFromCSVInDb(
+  businessId: string,
+  validRows: any[]
+): Promise<CsvImportOutcome> {
   let importedCount = 0;
-  for (const row of validRows) {
+  let failedCount = 0;
+  const errors: string[] = [];
+
+  for (let index = 0; index < validRows.length; index++) {
+    const row = validRows[index];
     const norm = row.normalized;
     if (!norm) continue;
 
-    await createCustomerInDb(
-      businessId,
-      {
-        name: norm.name,
-        phone: norm.phone,
-        address: norm.address || 'Kochi',
-        locality: 'Kochi',
-      },
-      {
-        name: norm.assetName || 'Air Conditioner',
-      },
-      {
-        serviceName: 'AC Periodic General Service',
-        lastServiceDate: norm.lastServiceDate || '',
-        nextDueDate: norm.nextDueDate,
-        intervalMonths: 6,
-        serviceAmount: norm.serviceAmount || 1200,
-        followUpStatus: 'NOT_CONTACTED',
+    try {
+      await createCustomerInDb(
+        businessId,
+        {
+          name: norm.name,
+          phone: norm.phone,
+          address: norm.address || 'Kochi',
+          locality: norm.address || 'Kochi',
+        },
+        {
+          name: norm.assetName || 'Air Conditioner',
+        },
+        {
+          serviceName: 'AC Periodic General Service',
+          lastServiceDate: norm.lastServiceDate || '',
+          nextDueDate: norm.nextDueDate,
+          intervalMonths: 6,
+          serviceAmount: norm.serviceAmount || 1200,
+          followUpStatus: 'NOT_CONTACTED',
+        }
+      );
+      importedCount++;
+    } catch (err: any) {
+      failedCount++;
+      if (errors.length < 5) {
+        errors.push(`CSV row ${index + 1}: ${err?.message || 'Unable to save this customer.'}`);
       }
-    );
-    importedCount++;
+    }
   }
-  return importedCount;
+
+  return { importedCount, failedCount, errors };
 }
 
 /**
@@ -303,13 +380,16 @@ export async function updateFollowUpStatusInDb(
     updates.booked_at = new Date().toISOString();
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('reminders')
     .update(updates)
     .eq('business_id', businessId)
-    .eq('schedule_id', scheduleId);
+    .eq('schedule_id', scheduleId)
+    .select('id')
+    .limit(1);
 
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error('No reminder was found for this service cycle in the active workspace.');
 }
 
 /**
@@ -577,16 +657,19 @@ export async function toggleServiceTypeStatusInDb(businessId: string, id: string
  */
 export async function updateMessageTemplateInDb(businessId: string, template: WhatsAppTemplate) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('message_templates')
     .update({
       message_body: template.templateText,
       updated_at: new Date().toISOString(),
     })
     .eq('id', template.id)
-    .eq('business_id', businessId);
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Message template was not found in this workspace or cannot be updated.');
 }
 
 /**
@@ -594,7 +677,7 @@ export async function updateMessageTemplateInDb(businessId: string, template: Wh
  */
 export async function updateBusinessInDb(businessId: string, biz: BusinessProfile) {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('businesses')
     .update({
       name: biz.name.trim(),
@@ -605,9 +688,12 @@ export async function updateBusinessInDb(businessId: string, biz: BusinessProfil
       default_interval_months: biz.defaultIntervalMonths,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', businessId);
+    .eq('id', businessId)
+    .select('id')
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) throw new Error('Business profile was not found or cannot be updated.');
 }
 
 /**

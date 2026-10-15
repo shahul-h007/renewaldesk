@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit } from './types';
 import { calculateDueStatus, calculateNextDueDate } from './due-date-engine';
 import { DEFAULT_TEMPLATES } from './whatsapp';
@@ -35,7 +35,7 @@ interface RenewalDeskContextType {
     cust: Omit<Customer, 'id' | 'createdAt'>,
     asset: Omit<Asset, 'id' | 'customerId'>,
     service: Omit<ServiceRecord, 'id' | 'customerId' | 'assetId' | 'urgency'>
-  ) => Promise<{ success: boolean; error?: string; customerId?: string }>;
+  ) => Promise<{ success: boolean; error?: string; customerId?: string; warning?: string }>;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
   updateFollowUpStatus: (serviceId: string, status: FollowUpStatus) => void;
@@ -46,7 +46,7 @@ interface RenewalDeskContextType {
     intervalValOverride?: number,
     intervalUnitOverride?: IntervalUnit
   ) => { nextDueDate: string };
-  importCustomersFromCSV: (validRows: any[]) => number;
+  importCustomersFromCSV: (validRows: any[]) => Promise<{ success: boolean; count: number; failedCount?: number; error?: string; warning?: string }>;
   updateTemplate: (tpl: WhatsAppTemplate) => void;
   updateBusiness: (biz: BusinessProfile) => void;
   addServiceType: (data: Omit<ServiceCatalogItem, 'id'>) => ServiceCatalogItem;
@@ -55,7 +55,7 @@ interface RenewalDeskContextType {
   toggleServiceTypeStatus: (id: string) => void;
   resetDemoData: () => void;
   isDatabaseMode: boolean;
-  reloadFromDb?: () => Promise<void>;
+  reloadFromDb?: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const EMPTY_BUSINESS: BusinessProfile = {
@@ -225,7 +225,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   const [assets, setAssets] = useState<Asset[]>(() => (isConfigured ? [] : INITIAL_ASSETS));
   const [services, setServices] = useState<ServiceRecord[]>(() => (isConfigured ? [] : generateSeedServices()));
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>(() => (isConfigured ? [] : INITIAL_CATALOG));
-  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(() => (isConfigured ? [] : DEFAULT_TEMPLATES));
   const [business, setBusiness] = useState<BusinessProfile>(() => {
     if (isConfigured) {
       if (authBiz) {
@@ -260,32 +260,70 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     }
   }, [authBiz, business.name]);
 
-  // Reload data from Supabase for authenticated business
-  const reloadFromDb = useCallback(async () => {
-    if (!authBiz) return;
+  // Remember which tenant's records are currently displayed so a workspace switch
+  // clears the previous tenant before the next tenant's data starts loading.
+  const loadedBusinessIdRef = useRef<string | null>(null);
+
+  // Reload data from Supabase for authenticated business.
+  // A structured result lets callers distinguish a successful write from a failed refresh.
+  const reloadFromDb = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!authBiz) {
+      return { success: false, error: 'No active business workspace is selected.' };
+    }
+
+    const tenantChanged = loadedBusinessIdRef.current !== authBiz.id;
+    if (tenantChanged) {
+      setCustomers([]);
+      setAssets([]);
+      setServices([]);
+      setCatalog([]);
+      setTemplates([]);
+      setBusiness(EMPTY_BUSINESS);
+      setIsLoaded(false);
+    }
+
     setIsLoadingDb(true);
     setDbError(null);
+    loadedBusinessIdRef.current = authBiz.id;
+
     try {
       const data = await fetchBusinessData(authBiz.id);
       setCustomers(data.customers);
       setAssets(data.assets);
       setServices(data.services);
-      setCatalog(data.catalog.length > 0 ? data.catalog : INITIAL_CATALOG);
-      setTemplates(data.templates.length > 0 ? data.templates : DEFAULT_TEMPLATES);
+      // Display only records returned for this workspace. Never invent cloud records
+      // by substituting local sample catalog/templates when the database returns none.
+      setCatalog(data.catalog);
+      setTemplates(data.templates);
       setBusiness(data.business);
-      setDbError(null);
+      return { success: true };
     } catch (err: any) {
       console.error('Failed to load business data from Supabase:', err);
-      setDbError(err.message || 'Failed to load business records from cloud database');
-      // In database mode, do not display sample records as cloud data
+      const message = err?.message || 'Failed to load business records from cloud database';
+      setDbError(message);
+      // Never retain or show the previous tenant's records after a failed workspace load.
       setCustomers([]);
       setAssets([]);
       setServices([]);
+      setCatalog([]);
+      setTemplates([]);
+      setBusiness(EMPTY_BUSINESS);
+      return { success: false, error: message };
     } finally {
       setIsLoadingDb(false);
       setIsLoaded(true);
     }
   }, [authBiz]);
+
+  // Roll back optimistic UI changes after a failed database mutation and expose the
+  // operation failure in the shared workspace notice, rather than only the console.
+  const reportMutationFailure = useCallback(async (operation: string, err: any) => {
+    const details = err?.message || String(err || 'Unknown database error');
+    if (authBiz) {
+      await reloadFromDb();
+    }
+    setDbError(`${operation} failed: ${details}`);
+  }, [authBiz, reloadFromDb]);
 
   // Load from Supabase in database mode, or LocalStorage in demo mode
   useEffect(() => {
@@ -302,13 +340,29 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
 
     // 3. User is authenticated but business is not yet configured: wait for onboarding
     if (isConfigured && user && !authBiz) {
+      loadedBusinessIdRef.current = null;
+      setCustomers([]);
+      setAssets([]);
+      setServices([]);
+      setCatalog([]);
+      setTemplates([]);
+      setBusiness(EMPTY_BUSINESS);
       setIsLoadingDb(false);
       setIsLoaded(true);
       return;
     }
 
-    // 4. Supabase is configured, but user is unauthenticated: stay clean and empty
+    // 4. Supabase is configured, but user is unauthenticated: clear all previous
+    // workspace data instead of leaving it resident after sign-out.
     if (isConfigured && !user) {
+      loadedBusinessIdRef.current = null;
+      setCustomers([]);
+      setAssets([]);
+      setServices([]);
+      setCatalog([]);
+      setTemplates([]);
+      setBusiness(EMPTY_BUSINESS);
+      setDbError(null);
       setIsLoadingDb(false);
       setIsLoaded(true);
       return;
@@ -387,15 +441,27 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     custData: Omit<Customer, 'id' | 'createdAt'>,
     assetData: Omit<Asset, 'id' | 'customerId'>,
     serviceData: Omit<ServiceRecord, 'id' | 'customerId' | 'assetId' | 'urgency'>
-  ): Promise<{ success: boolean; error?: string; customerId?: string }> => {
+  ): Promise<{ success: boolean; error?: string; customerId?: string; warning?: string }> => {
+    if (isConfigured && user && !authBiz) {
+      const error = 'Your business workspace is not ready yet. Complete onboarding before adding customers.';
+      setDbError(error);
+      return { success: false, error };
+    }
+
     if (isDatabaseMode && authBiz) {
       try {
         const { customerRow } = await createCustomerInDb(authBiz.id, custData, assetData, serviceData);
-        await reloadFromDb();
+        const refreshResult = await reloadFromDb();
+        if (!refreshResult.success) {
+          const warning = `Customer was saved, but the workspace could not refresh. Do not retry the same customer until you refresh successfully. ${refreshResult.error || ''}`.trim();
+          setDbError(warning);
+          return { success: true, customerId: customerRow.id, warning };
+        }
         return { success: true, customerId: customerRow.id };
       } catch (err: any) {
         console.error('Database error creating customer:', err);
         const errMsg = err?.message || 'Failed to save customer to cloud database';
+        await reloadFromDb();
         setDbError(errMsg);
         return { success: false, error: errMsg };
       }
@@ -436,10 +502,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       updateCustomerInDb(authBiz.id, cust)
         .then(() => reloadFromDb())
-        .catch(err => {
-          console.error('Database error updating customer:', err);
-          reloadFromDb();
-        });
+        .catch(err => { void reportMutationFailure('Saving customer details', err); });
     }
   };
 
@@ -450,10 +513,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       archiveCustomerInDb(authBiz.id, id)
         .then(() => reloadFromDb())
-        .catch(err => {
-          console.error('Database error archiving customer:', err);
-          reloadFromDb();
-        });
+        .catch(err => { void reportMutationFailure('Archiving customer', err); });
     }
   };
 
@@ -469,7 +529,8 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
 
     if (isDatabaseMode && authBiz) {
       updateFollowUpStatusInDb(authBiz.id, serviceId, status)
-        .catch(err => console.error('Database error updating follow-up status:', err));
+        .then(() => reloadFromDb())
+        .catch(err => { void reportMutationFailure('Updating follow-up status', err); });
     }
   };
 
@@ -515,7 +576,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       markServiceCompletedInDb(authBiz.id, serviceId, compDate, Number(amountCollected || 0), intervalVal, intervalUnit)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error completing service:', err));
+        .catch(err => { void reportMutationFailure('Completing service', err); });
     }
 
     return { nextDueDate: nextDue };
@@ -538,7 +599,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       addServiceTypeInDb(authBiz.id, data)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error adding service type:', err));
+        .catch(err => { void reportMutationFailure('Adding service type', err); });
     }
 
     return newItem;
@@ -560,7 +621,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       updateServiceTypeInDb(authBiz.id, itemToSave, updateExistingUpcoming)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error updating service type:', err));
+        .catch(err => { void reportMutationFailure('Updating service type', err); });
     }
 
     // When editing an interval, do not silently change due dates for existing customers.
@@ -607,7 +668,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       if (isDatabaseMode && authBiz) {
         toggleServiceTypeStatusInDb(authBiz.id, id, true)
           .then(() => reloadFromDb())
-          .catch(err => console.error('Database error deactivating service type:', err));
+          .catch(err => { void reportMutationFailure('Deactivating service type', err); });
       }
       return {
         success: false,
@@ -619,7 +680,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       deleteServiceTypeInDb(authBiz.id, id)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error deleting service type:', err));
+        .catch(err => { void reportMutationFailure('Deleting service type', err); });
     }
     return { success: true };
   };
@@ -630,11 +691,53 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz && targetItem) {
       toggleServiceTypeStatusInDb(authBiz.id, id, targetItem.isActive)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error toggling service type status:', err));
+        .catch(err => { void reportMutationFailure('Changing service type status', err); });
     }
   };
 
-  const importCustomersFromCSV = (validRows: any[]) => {
+  const importCustomersFromCSV = async (
+    validRows: any[]
+  ): Promise<{ success: boolean; count: number; failedCount?: number; error?: string; warning?: string }> => {
+    if (isConfigured && user && !authBiz) {
+      const error = 'Your business workspace is not ready yet. Complete onboarding before importing customers.';
+      setDbError(error);
+      return { success: false, count: 0, error };
+    }
+
+    // In cloud mode, do not show temporary local rows or report success before the
+    // actual per-row Supabase writes have finished.
+    if (isDatabaseMode && authBiz) {
+      const outcome = await importCustomersFromCSVInDb(authBiz.id, validRows);
+      const refreshResult = await reloadFromDb();
+      const rowErrorSummary = outcome.errors.join(' | ');
+
+      if (!refreshResult.success) {
+        const warning = `Imported ${outcome.importedCount} customer(s), but the workspace did not refresh. Do not re-import the file until the workspace refresh is working. ${refreshResult.error || ''}`.trim();
+        setDbError(warning);
+        return {
+          success: outcome.importedCount > 0,
+          count: outcome.importedCount,
+          failedCount: outcome.failedCount,
+          error: outcome.failedCount > 0 ? rowErrorSummary : undefined,
+          warning,
+        };
+      }
+
+      if (outcome.failedCount > 0) {
+        const message = `Imported ${outcome.importedCount} of ${validRows.length} valid rows. ${outcome.failedCount} row(s) failed. Check the customer list before retrying to avoid duplicates. ${rowErrorSummary}`.trim();
+        setDbError(message);
+        return {
+          success: outcome.importedCount > 0,
+          count: outcome.importedCount,
+          failedCount: outcome.failedCount,
+          error: message,
+        };
+      }
+
+      return { success: true, count: outcome.importedCount, failedCount: 0 };
+    }
+
+    // Offline/demo mode is deliberately local and keeps its sample IDs.
     const timestamp = Date.now();
     const newCustomers: Customer[] = [];
     const newAssets: Asset[] = [];
@@ -644,7 +747,6 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       const cId = `c-imp-${timestamp}-${i}`;
       const aId = `a-imp-${timestamp}-${i}`;
       const sId = `s-imp-${timestamp}-${i}`;
-
       const norm = row.normalized;
       if (!norm) return;
 
@@ -653,16 +755,14 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         name: norm.name,
         phone: norm.phone,
         address: norm.address || 'Kochi',
-        locality: 'Kochi',
+        locality: norm.address || 'Kochi',
         createdAt: new Date().toISOString().split('T')[0],
       });
-
       newAssets.push({
         id: aId,
         customerId: cId,
         name: norm.assetName || 'Air Conditioner',
       });
-
       newServices.push({
         id: sId,
         customerId: cId,
@@ -680,17 +780,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     setCustomers(prev => [...newCustomers, ...prev]);
     setAssets(prev => [...newAssets, ...prev]);
     setServices(prev => [...newServices, ...prev]);
-
-    if (isDatabaseMode && authBiz) {
-      importCustomersFromCSVInDb(authBiz.id, validRows)
-        .then(() => reloadFromDb())
-        .catch(err => {
-          console.error('Database error importing customers:', err);
-          reloadFromDb();
-        });
-    }
-
-    return newCustomers.length;
+    return { success: true, count: newCustomers.length, failedCount: 0 };
   };
 
   const updateTemplate = (tpl: WhatsAppTemplate) => {
@@ -698,7 +788,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       updateMessageTemplateInDb(authBiz.id, tpl)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error updating template:', err));
+        .catch(err => { void reportMutationFailure('Saving message template', err); });
     }
   };
 
@@ -707,7 +797,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     if (isDatabaseMode && authBiz) {
       updateBusinessInDb(authBiz.id, biz)
         .then(() => reloadFromDb())
-        .catch(err => console.error('Database error updating business profile:', err));
+        .catch(err => { void reportMutationFailure('Saving business settings', err); });
     }
   };
 

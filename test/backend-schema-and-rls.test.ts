@@ -8,7 +8,7 @@ import {
   mapDbScheduleToApp,
   buildWhatsAppFollowUpLink
 } from '../lib/db/operations';
-import { DbCustomer, DbAsset, DbServiceType, DbServiceSchedule } from '../lib/db/types';
+import { DbCustomer, DbAsset, DbServiceType, DbServiceSchedule, DbReminder } from '../lib/db/types';
 
 console.log('🧪 Starting RenewalDesk Backend, PostgreSQL Schema & RLS Test Suite...\n');
 
@@ -273,15 +273,19 @@ const mockDbSchedule: DbServiceSchedule = {
   updated_at: '2026-02-16T09:30:00Z'
 };
 
-const mockReminder = {
+const mockReminder: DbReminder = {
   id: 'rem-111',
   business_id: 'biz-001',
+  customer_id: 'cust-1234',
   schedule_id: 'sched-111',
+  due_date: '2026-02-15',
   status: 'CONTACTED' as const,
   contacted_at: '2026-02-16T09:30:00Z',
   booked_at: '2026-02-20',
   completed_at: null,
+  next_follow_up_at: null,
   notes: 'Customer prefers Saturday morning',
+  created_by: null,
   created_at: '2026-01-10T10:00:00Z',
   updated_at: '2026-02-16T09:30:00Z'
 };

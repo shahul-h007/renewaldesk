@@ -27,9 +27,20 @@ console.log('--- Suite 2: State Initialization Invariants (Cloud vs Demo) ---');
 {
   // Simulating the store initializer functions for Cloud Mode (isConfigured === true)
   const isConfiguredCloud = true;
-  const initialCloudCustomers: Customer[] = isConfiguredCloud ? [] : [{ id: 'sample', name: 'Sample', phone: '123', createdAt: '2026-01-01' }];
+  const initialCloudCustomers: Customer[] = isConfiguredCloud ? [] : [{ id: 'sample', name: 'Sample', phone: '123', address: 'Kochi', createdAt: '2026-01-01' }];
   const initialCloudAssets: Asset[] = isConfiguredCloud ? [] : [{ id: 'a-1', customerId: 'sample', name: 'AC' }];
-  const initialCloudServices: ServiceRecord[] = isConfiguredCloud ? [] : [{ id: 's-1', customerId: 'sample', assetId: 'a-1', serviceName: 'Service', nextDueDate: '2026-10-10' }];
+  const initialCloudServices: ServiceRecord[] = isConfiguredCloud ? [] : [{
+    id: 's-1',
+    customerId: 'sample',
+    assetId: 'a-1',
+    serviceName: 'Service',
+    lastServiceDate: '2026-04-10',
+    nextDueDate: '2026-10-10',
+    intervalMonths: 6,
+    serviceAmount: 1200,
+    urgency: 'DUE_THIS_MONTH',
+    followUpStatus: 'NOT_CONTACTED',
+  }];
   const initialCloudBiz: BusinessProfile = isConfiguredCloud ? EMPTY_BUSINESS : { name: 'Kochi Chill AC Care', phone: '123', industry: 'AC', city: 'Kochi', currency: '₹', defaultIntervalMonths: 6 };
   const initialCloudLoaded = !isConfiguredCloud;
   const initialCloudLoadingDb = isConfiguredCloud;
@@ -44,7 +55,7 @@ console.log('--- Suite 2: State Initialization Invariants (Cloud vs Demo) ---');
 
   // Simulating the store initializer functions for Demo Mode (isConfigured === false)
   const isConfiguredDemo = false;
-  const initialDemoCustomers: Customer[] = isConfiguredDemo ? [] : [{ id: 'c-1', name: 'Arun Kumar', phone: '9846012345', createdAt: '2026-01-10' }];
+  const initialDemoCustomers: Customer[] = isConfiguredDemo ? [] : [{ id: 'c-1', name: 'Arun Kumar', phone: '9846012345', address: 'Panampilly Nagar, Kochi', createdAt: '2026-01-10' }];
   const initialDemoBiz: BusinessProfile = isConfiguredDemo ? EMPTY_BUSINESS : { name: 'Kochi Chill AC Care', phone: '+91 98460 11223', industry: 'AC', city: 'Kochi', currency: '₹', defaultIntervalMonths: 6 };
   const initialDemoLoaded = !isConfiguredDemo;
   const initialDemoLoadingDb = isConfiguredDemo;
@@ -141,19 +152,19 @@ console.log('--- Suite 4: Status Indicator Badge Determinism ---');
 {
   type BadgeState = 'Connecting' | 'Loading records' | 'Database Error' | 'Supabase Cloud' | 'Demo Mode';
 
-  function resolveBadge(state: {
+  const resolveBadge = (state: {
     isConfigured: boolean;
     isAuthLoading: boolean;
     isLoadingDb: boolean;
     isDatabaseMode: boolean;
     dbError: string | null;
-  }): BadgeState {
+  }): BadgeState => {
     if (state.dbError) return 'Database Error';
     if (state.isConfigured && state.isAuthLoading) return 'Connecting';
     if (state.isConfigured && state.isLoadingDb) return 'Loading records';
     if (state.isDatabaseMode) return 'Supabase Cloud';
     return 'Demo Mode';
-  }
+  };
 
   // 1. Initial page refresh with configured cloud backend
   assert.equal(
@@ -199,16 +210,16 @@ console.log('--- Suite 4: Status Indicator Badge Determinism ---');
 console.log('--- Suite 5: Genuine Empty State vs Tab Caught-Up State Separation ---');
 
 {
-  function resolveEmptyStateType(params: {
+  const resolveEmptyStateType = (params: {
     totalCustomers: number;
     filteredCount: number;
     searchQuery: string;
-  }): 'EMPTY_WORKSPACE' | 'CAUGHT_UP' | 'NO_SEARCH_RESULTS' | 'HAS_DATA' {
+  }): 'EMPTY_WORKSPACE' | 'CAUGHT_UP' | 'NO_SEARCH_RESULTS' | 'HAS_DATA' => {
     if (params.filteredCount > 0) return 'HAS_DATA';
     if (params.totalCustomers === 0) return 'EMPTY_WORKSPACE';
     if (params.searchQuery.trim().length > 0) return 'NO_SEARCH_RESULTS';
     return 'CAUGHT_UP';
-  }
+  };
 
   // Case 1: Fresh authenticated business tenant with 0 customers in database
   assert.equal(

@@ -68,7 +68,7 @@ export default function DashboardPage() {
     return a.nextDueDate.localeCompare(b.nextDueDate);
   });
 
-  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+  const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   if (isCloudLoading) {
     return (

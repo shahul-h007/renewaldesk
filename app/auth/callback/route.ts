@@ -21,12 +21,18 @@ export async function GET(request: Request) {
       // Check if user has an associated business
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: membership } = await supabase
+        const { data: membership, error: membershipError } = await supabase
           .from('business_members')
           .select('business_id')
           .eq('user_id', user.id)
           .limit(1)
           .maybeSingle();
+
+        // A failed membership query must not be treated as a brand-new account:
+        // doing so could encourage creation of duplicate workspaces.
+        if (membershipError) {
+          return NextResponse.redirect(new URL('/login?error=workspace_lookup_failed', request.url));
+        }
 
         if (!membership) {
           return NextResponse.redirect(new URL('/onboarding', request.url));

@@ -12,7 +12,7 @@ export default function ResultsPage() {
   const { services, customers, business, isLoadingDb, isLoaded } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
 
-  const isCloudLoading = isConfigured && (isAuthLoading || isLoadingDb || !isLoaded);
+  const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   if (isCloudLoading) {
     return (
