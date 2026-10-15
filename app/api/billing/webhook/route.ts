@@ -4,10 +4,18 @@ import { verifyWebhookSignature } from '@/lib/billing/razorpay';
 import { getPlanById } from '@/lib/billing/plans';
 
 // Helper to get service/admin client for background webhook tasks
+// Throws explicitly if SUPABASE_SERVICE_ROLE_KEY is missing to prevent silent RLS failures
 function getWebhookSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  return createClient(url, key, {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error(
+      'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_URL are required for webhook processing.'
+    );
+  }
+
+  return createClient(url, serviceRoleKey, {
     auth: { persistSession: false },
   });
 }
@@ -27,11 +35,22 @@ export async function POST(request: Request) {
     }
 
     const event = JSON.parse(rawBody);
-    const eventId = event?.id;
+    const headerEventId = request.headers.get('x-razorpay-event-id');
     const eventType = event?.event;
+    const payload = event?.payload || {};
+
+    const paymentEntity = payload?.payment?.entity;
+    const orderEntity = payload?.order?.entity;
+    const subEntity = payload?.subscription?.entity;
+
+    // Razorpay sends unique event ID in 'x-razorpay-event-id' header; fallback to event.id or deterministic synthetic ID
+    const eventId =
+      headerEventId ||
+      event?.id ||
+      (eventType ? `${eventType}_${paymentEntity?.id || orderEntity?.id || subEntity?.id || Date.now()}` : '');
 
     if (!eventId || !eventType) {
-      return NextResponse.json({ error: 'Malformed webhook payload.' }, { status: 400 });
+      return NextResponse.json({ error: 'Malformed webhook payload: missing event ID or type.' }, { status: 400 });
     }
 
     const supabase = getWebhookSupabaseClient();
@@ -63,15 +82,81 @@ export async function POST(request: Request) {
       console.error('Error recording webhook event:', insertErr);
     }
 
-    const payload = event?.payload || {};
+    // 4. Handle Order Paid / One-Time Founding Lifetime Payment
+    if (eventType === 'order.paid' || (eventType === 'payment.captured' && paymentEntity?.order_id && !payload?.subscription)) {
+      const notes = orderEntity?.notes || paymentEntity?.notes || {};
+      const businessId = notes?.businessId;
+      const userId = notes?.userId;
+      const planId = notes?.planId;
+      const billingType = notes?.billingType;
 
-    // 4. Handle Subscription Charged (Successful Renewal / Initial Payment)
+      if (businessId && (billingType === 'lifetime_purchase' || planId === 'founding_lifetime')) {
+        const orderId = orderEntity?.id || paymentEntity?.order_id;
+        const paymentId = paymentEntity?.id;
+
+        if (paymentId && orderId) {
+          // Claim Founding Lifetime Slot via atomic procedure
+          const { data: slotNumber, error: rpcErr } = await supabase.rpc('claim_founding_lifetime_slot', {
+            p_business_id: businessId,
+            p_user_id: userId || '00000000-0000-0000-0000-000000000000',
+            p_order_id: orderId,
+            p_payment_id: paymentId,
+          });
+
+          if (rpcErr && !rpcErr.message?.includes('already assigned')) {
+            console.warn('Webhook claim_founding_lifetime_slot warning, attempting fallback upsert:', rpcErr.message);
+            await supabase
+              .from('business_subscriptions')
+              .upsert({
+                business_id: businessId,
+                plan_id: 'founding_lifetime',
+                billing_type: 'lifetime_purchase',
+                status: 'active',
+                max_active_customers: 100,
+                razorpay_order_id: orderId,
+                razorpay_payment_id: paymentId,
+                is_lifetime: true,
+                trial_status: 'converted',
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'business_id' });
+          }
+
+          // Record payment transaction
+          await supabase.from('payment_transactions').upsert({
+            business_id: businessId,
+            user_id: userId || null,
+            plan_id: 'founding_lifetime',
+            billing_type: 'lifetime_purchase',
+            amount_paise: paymentEntity?.amount || 59900,
+            currency: paymentEntity?.currency || 'INR',
+            status: 'captured',
+            razorpay_order_id: orderId,
+            razorpay_payment_id: paymentId,
+            metadata: {
+              webhook_event_id: eventId,
+              slot_number: slotNumber ?? null,
+            },
+          }, { onConflict: 'razorpay_payment_id' });
+
+          return NextResponse.json({ success: true, eventId, plan: 'founding_lifetime' });
+        }
+      }
+    }
+
+    // 5. Handle Subscription Charged (Successful Renewal / Initial Monthly Payment)
     if (eventType === 'subscription.charged') {
-      const subEntity = payload?.subscription?.entity;
-      const paymentEntity = payload?.payment?.entity;
       const notes = subEntity?.notes || {};
       const businessId = notes?.businessId;
       const planId = notes?.planId;
+
+      if (!businessId) {
+        // Razorpay Dashboard test ping or unlinked subscription
+        return NextResponse.json({
+          success: true,
+          eventId,
+          notice: 'Event acknowledged; skipped subscription provisioning because no workspace businessId was present in notes.',
+        });
+      }
 
       if (businessId && planId) {
         const plan = getPlanById(planId);
@@ -91,7 +176,7 @@ export async function POST(request: Request) {
               billing_type: 'monthly_subscription',
               status: 'active',
               max_active_customers: plan.maxActiveCustomers,
-              razorpay_subscription_id: subEntity.id,
+              razorpay_subscription_id: subEntity?.id,
               razorpay_payment_id: paymentEntity?.id || null,
               current_period_start: currentStart,
               current_period_end: currentEnd,
@@ -110,20 +195,21 @@ export async function POST(request: Request) {
               amount_paise: paymentEntity.amount || plan.pricePaise,
               currency: paymentEntity.currency || 'INR',
               status: 'captured',
-              razorpay_subscription_id: subEntity.id,
+              razorpay_subscription_id: subEntity?.id,
               razorpay_payment_id: paymentEntity.id,
               metadata: {
                 webhook_event_id: eventId,
               },
             }, { onConflict: 'razorpay_payment_id' });
           }
+
+          return NextResponse.json({ success: true, eventId, plan: plan.id });
         }
       }
     }
 
-    // 5. Handle Subscription Cancelled
+    // 6. Handle Subscription Cancelled
     if (eventType === 'subscription.cancelled') {
-      const subEntity = payload?.subscription?.entity;
       const subId = subEntity?.id;
       if (subId) {
         await supabase
@@ -136,11 +222,11 @@ export async function POST(request: Request) {
           })
           .eq('razorpay_subscription_id', subId);
       }
+      return NextResponse.json({ success: true, eventId });
     }
 
-    // 6. Handle Subscription Halted / Past Due (Failed auto-renewal)
+    // 7. Handle Subscription Halted / Past Due (Failed auto-renewal)
     if (eventType === 'subscription.halted' || eventType === 'subscription.paused') {
-      const subEntity = payload?.subscription?.entity;
       const subId = subEntity?.id;
       if (subId) {
         await supabase
@@ -151,11 +237,11 @@ export async function POST(request: Request) {
           })
           .eq('razorpay_subscription_id', subId);
       }
+      return NextResponse.json({ success: true, eventId });
     }
 
-    // 7. Handle Payment Failed
+    // 8. Handle Payment Failed
     if (eventType === 'payment.failed') {
-      const paymentEntity = payload?.payment?.entity;
       const notes = paymentEntity?.notes || {};
       const businessId = notes?.businessId;
 
@@ -177,6 +263,7 @@ export async function POST(request: Request) {
           },
         }, { onConflict: 'razorpay_payment_id' });
       }
+      return NextResponse.json({ success: true, eventId });
     }
 
     return NextResponse.json({ success: true, eventId });
