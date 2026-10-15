@@ -30,31 +30,39 @@ async function claimWebhookEvent(
   });
 
   if (!rpcErr) {
-    if (Array.isArray(rpcData) && rpcData.length > 0) {
-      const claim = rpcData[0];
-      if (claim.claim_status === 'already_completed') {
-        return { outcome: 'already_processed', ignored: claim.event_status === 'ignored' };
-      }
-      if (claim.claim_status === 'in_flight') {
-        return { outcome: 'in_flight' };
-      }
-      if (claim.claim_status === 'claimed') {
-        return { outcome: 'claimed' };
-      }
-    }
-  } else {
-    // Only fall back to optimistic table-level locking if the RPC is explicitly recognized as missing from the schema/cache:
-    // - '42883': PostgreSQL undefined_function (function does not exist)
-    // - 'PGRST202': PostgREST could not find the function in schema cache
-    const isRpcUnavailable = rpcErr.code === '42883' || rpcErr.code === 'PGRST202';
+    const claim = Array.isArray(rpcData) && rpcData.length > 0
+      ? rpcData[0]
+      : (rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData) ? rpcData : null);
 
-    if (!isRpcUnavailable) {
-      // Unexpected RPC database failure: do NOT silently hide or swallow!
-      throw new Error(`Database error during webhook claim RPC: [${rpcErr.code}] ${rpcErr.message}`);
+    if (!claim || typeof claim !== 'object') {
+      throw new Error(`claim_webhook_event RPC returned empty or invalid response: ${JSON.stringify(rpcData)}`);
     }
 
-    console.warn('[Webhook Claim] claim_webhook_event RPC unavailable; falling back to optimistic table-level locking.');
+    if (claim.claim_status === 'already_completed') {
+      return { outcome: 'already_processed', ignored: claim.event_status === 'ignored' };
+    }
+    if (claim.claim_status === 'in_flight') {
+      return { outcome: 'in_flight' };
+    }
+    if (claim.claim_status === 'claimed') {
+      return { outcome: 'claimed' };
+    }
+
+    throw new Error(`claim_webhook_event RPC returned unrecognized claim_status: '${claim.claim_status}'`);
   }
+
+  // Only fall back to optimistic table-level locking if the RPC is explicitly recognized as missing from the schema/cache:
+  // - '42883': PostgreSQL undefined_function (function does not exist)
+  // - 'PGRST202': PostgREST could not find the function in schema cache
+  const isRpcUnavailable = rpcErr.code === '42883' || rpcErr.code === 'PGRST202';
+
+  if (!isRpcUnavailable) {
+    // Unexpected RPC database failure: do NOT silently hide or swallow!
+    // Any internal error, syntax error, connection failure, or deadlock must fail safely.
+    throw new Error(`Database error during webhook claim RPC: [${rpcErr.code}] ${rpcErr.message}`);
+  }
+
+  console.warn('[Webhook Claim] claim_webhook_event RPC unavailable; falling back to optimistic table-level locking.');
 
   // 2. Table-level atomic claim fallback (Optimistic Conditional Locking)
   const nowIso = new Date().toISOString();

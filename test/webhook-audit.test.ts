@@ -1199,9 +1199,105 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 22: Handler Strictly Rejects Failed Lifetime Slot Claim (Sold Out)
+  // Test 22: Handler Strictly Rejects Empty RPC Result Without Fallback
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 22 [HANDLER - IN-MEMORY SIMULATION]: Rejects Failed Lifetime Slot Claim (Sold Out) ---');
+  console.log('\n--- Test 22 [HANDLER - IN-MEMORY SIMULATION]: Rejects Empty RPC Result Without Fallback ---');
+  {
+    const mockDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(mockDb);
+
+    const businessId = 'biz_empty_rpc_112';
+    const paymentId = 'pay_empty_rpc_112';
+    const eventId = 'evt_empty_rpc_112';
+
+    // Simulate RPC succeeding with empty array []
+    mockDb.rpcHandlers['claim_webhook_event'] = async () => {
+      return {
+        data: [],
+        error: null,
+      };
+    };
+
+    const event = {
+      event: 'subscription.charged',
+      id: eventId,
+      payload: {
+        subscription: { entity: { id: 'sub_empty_rpc', notes: { businessId, planId: 'starter' } } },
+        payment: { entity: { id: paymentId, amount: 4900, currency: 'INR', status: 'captured' } },
+      },
+    };
+
+    const req = createSignedWebhookRequest(event);
+    const res = await POST(req);
+    assert.equal(res.status, 500, 'Empty RPC result must return HTTP 500');
+
+    const json = await res.json();
+    assert.equal(json.error, 'Webhook processing failed.', 'Must return generic error message to external callers');
+
+    // Confirm table-level fallback was NOT invoked:
+    // business subscription and payment transaction must NOT be provisioned
+    assert.equal(mockDb.tables.business_subscriptions.has(businessId), false, 'Table-level fallback must NOT provision subscription');
+    assert.equal(mockDb.tables.payment_transactions.has(paymentId), false, 'Table-level fallback must NOT record transaction');
+
+    const evt = mockDb.tables.webhook_events.get(eventId);
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('claim_webhook_event RPC returned empty or invalid response'));
+
+    console.log('  ✔ Regression passed: Empty RPC result returned HTTP 500 without invoking table fallback or provisioning');
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 23: Handler Strictly Rejects Unknown claim_status Without Fallback
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test 23 [HANDLER - IN-MEMORY SIMULATION]: Rejects Unknown claim_status Without Fallback ---');
+  {
+    const mockDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(mockDb);
+
+    const businessId = 'biz_unknown_status_113';
+    const paymentId = 'pay_unknown_status_113';
+    const eventId = 'evt_unknown_status_113';
+
+    // Simulate RPC succeeding with unrecognized claim_status
+    mockDb.rpcHandlers['claim_webhook_event'] = async () => {
+      return {
+        data: [{ claim_status: 'unknown_unexpected_status', event_status: 'pending' }],
+        error: null,
+      };
+    };
+
+    const event = {
+      event: 'subscription.charged',
+      id: eventId,
+      payload: {
+        subscription: { entity: { id: 'sub_unknown_status', notes: { businessId, planId: 'starter' } } },
+        payment: { entity: { id: paymentId, amount: 4900, currency: 'INR', status: 'captured' } },
+      },
+    };
+
+    const req = createSignedWebhookRequest(event);
+    const res = await POST(req);
+    assert.equal(res.status, 500, 'Unknown claim_status must return HTTP 500');
+
+    const json = await res.json();
+    assert.equal(json.error, 'Webhook processing failed.', 'Must return generic error message to external callers');
+
+    // Confirm table-level fallback was NOT invoked:
+    // business subscription and payment transaction must NOT be provisioned
+    assert.equal(mockDb.tables.business_subscriptions.has(businessId), false, 'Table-level fallback must NOT provision subscription');
+    assert.equal(mockDb.tables.payment_transactions.has(paymentId), false, 'Table-level fallback must NOT record transaction');
+
+    const evt = mockDb.tables.webhook_events.get(eventId);
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes("unrecognized claim_status: 'unknown_unexpected_status'"));
+
+    console.log('  ✔ Regression passed: Unknown claim_status returned HTTP 500 without invoking table fallback or provisioning');
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 24: Handler Strictly Rejects Failed Lifetime Slot Claim (Sold Out)
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test 24 [HANDLER - IN-MEMORY SIMULATION]: Rejects Failed Lifetime Slot Claim (Sold Out) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -1261,10 +1357,10 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 23: Regression Test: Business Already Has Active Lifetime Slot & Receives Different Order/Payment
+  // Test 25: Regression Test: Business Already Has Active Lifetime Slot & Receives Different Order/Payment
   // (Even when claim RPC returns existing slot, handler strictly rejects mismatched purchase)
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 23 [HANDLER - IN-MEMORY SIMULATION]: Rejects Mismatched Lifetime Order/Payment ---');
+  console.log('\n--- Test 25 [HANDLER - IN-MEMORY SIMULATION]: Rejects Mismatched Lifetime Order/Payment ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -1331,9 +1427,9 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 24: Handler Idempotently Resolves Exact Matching Lifetime Duplicate
+  // Test 26: Handler Idempotently Resolves Exact Matching Lifetime Duplicate
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 24 [HANDLER - IN-MEMORY SIMULATION]: Idempotently Resolves Matching Lifetime Duplicate ---');
+  console.log('\n--- Test 26 [HANDLER - IN-MEMORY SIMULATION]: Idempotently Resolves Matching Lifetime Duplicate ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -1392,9 +1488,9 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 25: Handler Handles subscription.cancelled, halted, and payment.failed
+  // Test 27: Handler Handles subscription.cancelled, halted, and payment.failed
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 25 [HANDLER - IN-MEMORY SIMULATION]: Lifecycle Transitions (cancelled, halted, payment.failed) ---');
+  console.log('\n--- Test 27 [HANDLER - IN-MEMORY SIMULATION]: Lifecycle Transitions (cancelled, halted, payment.failed) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -1460,10 +1556,11 @@ async function runHandlerIntegrationTests() {
 runHandlerIntegrationTests()
   .then(() => {
     console.log('\n================================================================');
-    console.log('🎉 ALL 25 WEBHOOK & SUBSCRIPTION AUDIT TESTS PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL 27 WEBHOOK & SUBSCRIPTION AUDIT TESTS PASSED SUCCESSFULLY!');
     console.log('   - 6 Helper-Level Pure Unit Tests');
-    console.log('   - 19 Handler-Level Simulated Database Tests (POST + In-Memory Ledger)');
+    console.log('   - 21 Handler-Level Simulated Database Tests (POST + In-Memory Ledger)');
     console.log('   - Concurrency tests are IN-MEMORY SIMULATIONS, not proof of real PG concurrency');
+    console.log('   - Empty RPC results, unknown claim_status, & RPC fallback boundaries strictly guarded');
     console.log('   - Explicit captured status, lifetime identity binding, & RPC safety verified');
     console.log('================================================================\n');
   })
