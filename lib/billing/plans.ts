@@ -150,6 +150,7 @@ export function getPlanEnvKey(planId: BillingPlanId): string | null {
 }
 
 export function getTrialInfo(sub: {
+  plan_id?: string | null;
   trial_status?: string | null;
   trial_started_at?: string | null;
   trial_expires_at?: string | null;
