@@ -22,15 +22,15 @@ async function claimWebhookEvent(
   eventPayload: any
 ): Promise<ClaimResult> {
   // 1. Attempt database RPC function with FOR UPDATE row lock if available
-  try {
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('claim_webhook_event', {
-      p_event_id: eventId,
-      p_event_type: eventType,
-      p_payload: eventPayload,
-      p_stale_seconds: 60,
-    });
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('claim_webhook_event', {
+    p_event_id: eventId,
+    p_event_type: eventType,
+    p_payload: eventPayload,
+    p_stale_seconds: 60,
+  });
 
-    if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+  if (!rpcErr) {
+    if (Array.isArray(rpcData) && rpcData.length > 0) {
       const claim = rpcData[0];
       if (claim.claim_status === 'already_completed') {
         return { outcome: 'already_processed', ignored: claim.event_status === 'ignored' };
@@ -42,11 +42,22 @@ async function claimWebhookEvent(
         return { outcome: 'claimed' };
       }
     }
-  } catch {
-    // Fall back to table-level optimistic locking if RPC is not present
+  } else {
+    // Only fall back to optimistic table-level locking if the RPC is explicitly unavailable in PostgreSQL schema cache
+    const isRpcUnavailable =
+      rpcErr.code === '42883' || // PostgreSQL undefined_function
+      rpcErr.code === 'PGRST202' || // PostgREST function not found in schema cache
+      rpcErr.message?.includes('claim_webhook_event');
+
+    if (!isRpcUnavailable) {
+      // Unexpected RPC database failure: do NOT silently hide or swallow!
+      throw new Error(`Database error during webhook claim RPC: [${rpcErr.code}] ${rpcErr.message}`);
+    }
+
+    console.warn('[Webhook Claim] claim_webhook_event RPC unavailable; falling back to optimistic table-level locking.');
   }
 
-  // 2. Table-level atomic claim (Optimistic Conditional Locking)
+  // 2. Table-level atomic claim fallback (Optimistic Conditional Locking)
   const nowIso = new Date().toISOString();
 
   // Attempt initial insert as 'processing'
@@ -215,7 +226,7 @@ export async function POST(request: Request) {
         const paymentCurrency = paymentEntity?.currency;
         const paymentStatus = paymentEntity?.status;
 
-        // Strict payment validation: never substitute defaults
+        // Strict payment validation: never substitute defaults or allow missing captured status
         if (!paymentId || !orderId) {
           throw new Error('Malformed order payload: missing paymentId or orderId.');
         }
@@ -231,8 +242,36 @@ export async function POST(request: Request) {
           throw new Error(`Payment validation failed: Invalid currency '${paymentCurrency}'. Expected INR.`);
         }
 
-        if (paymentStatus && paymentStatus !== 'captured') {
-          throw new Error(`Payment validation failed: Payment status '${paymentStatus}' is not captured.`);
+        // Strict requirement: reject missing, null, or non-captured payment status
+        if (!paymentStatus || paymentStatus !== 'captured') {
+          throw new Error(
+            `Payment validation failed: Invalid or missing payment status '${paymentStatus || 'missing'}'. Expected 'captured'.`
+          );
+        }
+
+        // PRE-CLAIM IDENTITY CHECK:
+        // If workspace already holds an active lifetime slot, it must be the exact same order and payment ID.
+        // A different order or payment must be rejected immediately to prevent silent reattribution or transaction corruption.
+        const { data: existingSub, error: preCheckErr } = await supabase
+          .from('business_subscriptions')
+          .select('is_lifetime, status, lifetime_slot_number, razorpay_order_id, razorpay_payment_id')
+          .eq('business_id', businessId)
+          .maybeSingle();
+
+        if (preCheckErr) {
+          throw new Error(`Failed to query existing subscription during lifetime pre-claim check: ${preCheckErr.message}`);
+        }
+
+        if (existingSub?.is_lifetime && existingSub?.status === 'active') {
+          const isSamePurchase =
+            existingSub.razorpay_order_id === orderId &&
+            existingSub.razorpay_payment_id === paymentId;
+
+          if (!isSamePurchase) {
+            throw new Error(
+              `Lifetime purchase rejected: Workspace already has an active lifetime slot (#${existingSub.lifetime_slot_number}) tied to order ${existingSub.razorpay_order_id} / payment ${existingSub.razorpay_payment_id}. Different order ${orderId} / payment ${paymentId} cannot claim this slot.`
+            );
+          }
         }
 
         // Call the authoritative atomic RPC function to claim the lifetime slot
@@ -244,27 +283,29 @@ export async function POST(request: Request) {
         });
 
         if (rpcErr) {
-          // Only treat RPC failure as an already-completed duplicate if the existing active lifetime slot
-          // is strictly tied to the exact same verified Razorpay order AND payment.
-          const { data: existingSub, error: subQueryErr } = await supabase
-            .from('business_subscriptions')
-            .select('is_lifetime, status, lifetime_slot_number, razorpay_order_id, razorpay_payment_id')
-            .eq('business_id', businessId)
-            .eq('is_lifetime', true)
-            .eq('status', 'active')
-            .maybeSingle();
+          throw new Error(`Authoritative lifetime slot claim failed: [${rpcErr.code}] ${rpcErr.message}`);
+        }
 
-          const isMatchingExistingPayment =
-            !subQueryErr &&
-            existingSub &&
-            existingSub.lifetime_slot_number &&
-            existingSub.razorpay_order_id === orderId &&
-            existingSub.razorpay_payment_id === paymentId;
+        // POST-CLAIM IDENTITY VERIFICATION:
+        // Ensure the persisted database record strictly binds to the incoming order and payment IDs
+        const { data: verifiedSub, error: verifySubErr } = await supabase
+          .from('business_subscriptions')
+          .select('is_lifetime, status, lifetime_slot_number, razorpay_order_id, razorpay_payment_id')
+          .eq('business_id', businessId)
+          .eq('is_lifetime', true)
+          .eq('status', 'active')
+          .maybeSingle();
 
-          if (!isMatchingExistingPayment) {
-            // STRICT SECURITY: Do not bypass RPC failure with direct upsert, and do NOT attribute mismatched orders/payments!
-            throw new Error(`Authoritative lifetime slot claim failed: [${rpcErr.code}] ${rpcErr.message}`);
-          }
+        if (
+          verifySubErr ||
+          !verifiedSub ||
+          !verifiedSub.lifetime_slot_number ||
+          verifiedSub.razorpay_order_id !== orderId ||
+          verifiedSub.razorpay_payment_id !== paymentId
+        ) {
+          throw new Error(
+            `Lifetime purchase identity verification failed: Persisted subscription does not match incoming order ${orderId} or payment ${paymentId}.`
+          );
         }
 
         // Record payment transaction with strictly validated amount and currency
@@ -280,7 +321,7 @@ export async function POST(request: Request) {
           razorpay_payment_id: paymentId,
           metadata: {
             webhook_event_id: eventId,
-            slot_number: slotNumber ?? null,
+            slot_number: slotNumber ?? verifiedSub.lifetime_slot_number,
           },
         }, { onConflict: 'razorpay_payment_id' });
 
@@ -321,7 +362,7 @@ export async function POST(request: Request) {
         const paymentCurrency = paymentEntity?.currency;
         const paymentStatus = paymentEntity?.status;
 
-        // Strict payment validation: never substitute defaults
+        // Strict payment validation: never substitute defaults or allow missing captured status
         if (!subId || !paymentId) {
           throw new Error('Malformed subscription payload: missing subscription ID or payment ID.');
         }
@@ -336,8 +377,11 @@ export async function POST(request: Request) {
           throw new Error(`Payment validation failed: Invalid currency '${paymentCurrency}'. Expected INR.`);
         }
 
-        if (paymentStatus && paymentStatus !== 'captured') {
-          throw new Error(`Payment validation failed: Payment status '${paymentStatus}' is not captured.`);
+        // Strict requirement: reject missing, null, or non-captured payment status
+        if (!paymentStatus || paymentStatus !== 'captured') {
+          throw new Error(
+            `Payment validation failed: Invalid or missing payment status '${paymentStatus || 'missing'}'. Expected 'captured'.`
+          );
         }
 
         const currentStart = subEntity?.current_start

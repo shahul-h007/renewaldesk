@@ -22,7 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'mock_service_role_key_test_secret';
 // PART 1: HELPER-LEVEL UNIT TESTS (PURE ISOLATED LOGIC)
 // =========================================================================
 console.log('================================================================');
-console.log('=== PART 1: HELPER-LEVEL UNIT TESTS (PURE LOGIC)             ===');
+console.log('=== PART 1: HELPER-LEVEL UNIT TESTS (PURE ISOLATED LOGIC)    ===');
 console.log('================================================================\n');
 
 // -------------------------------------------------------------------------
@@ -50,7 +50,7 @@ console.log('--- Test 1 [PURE UNIT]: Webhook HMAC Signature Validation & Tamper 
       payment: {
         entity: {
           id: 'pay_test_456',
-          amount: 29900,
+          amount: 19900,
           currency: 'INR',
           status: 'captured',
         },
@@ -314,15 +314,15 @@ console.log('\n--- Test 6 [PURE UNIT]: Event ID Extraction & Razorpay Test Ping 
 
 
 // =========================================================================
-// PART 2: HANDLER-LEVEL INTEGRATION TESTS (POST Handler & Database Persistence)
-// [LABELED: IN-MEMORY MOCK SUPABASE / POSTGRESQL SIMULATION]
+// PART 2: HANDLER-LEVEL INTEGRATION TESTS (POST Handler)
+// [NOTE: IN-MEMORY MOCK SUPABASE / POSTGRESQL SIMULATION — NOT REAL POSTGRESQL]
 // =========================================================================
 console.log('\n================================================================');
 console.log('=== PART 2: HANDLER-LEVEL ROUTE INTEGRATION TESTS (POST)     ===');
-console.log('=== [SIMULATED POSTGRESQL & SUPABASE TRANSACTIONAL ENGINE]  ===');
+console.log('=== [IN-MEMORY MOCK SUPABASE SIMULATION — NOT REAL POSTGRESQL] ===');
 console.log('================================================================\n');
 
-// Mock in-memory Supabase client accurately modeling PostgreSQL tables, constraints, and RPCs
+// Mock in-memory Supabase client accurately modeling table storage, unique constraints, and RPCs
 class MockSupabaseClient {
   tables: {
     webhook_events: Map<string, any>;
@@ -340,6 +340,30 @@ class MockSupabaseClient {
     };
     this.rpcHandlers = {};
     this.failWritesOnTable = {};
+
+    // Default simulation for claim_founding_lifetime_slot
+    this.rpcHandlers['claim_founding_lifetime_slot'] = async ({ p_business_id, p_order_id, p_payment_id }) => {
+      const subTable = this.tables.business_subscriptions;
+      const existing = subTable.get(p_business_id);
+      if (existing && existing.is_lifetime && existing.status === 'active') {
+        // Models existing RPC behavior: returns assigned slot
+        return { data: existing.lifetime_slot_number, error: null };
+      }
+      const newSlot = 1;
+      const row = {
+        business_id: p_business_id,
+        plan_id: 'founding_lifetime',
+        billing_type: 'lifetime_purchase',
+        status: 'active',
+        max_active_customers: 100,
+        is_lifetime: true,
+        lifetime_slot_number: newSlot,
+        razorpay_order_id: p_order_id,
+        razorpay_payment_id: p_payment_id,
+      };
+      subTable.set(p_business_id, row);
+      return { data: newSlot, error: null };
+    };
   }
 
   from(tableName: string) {
@@ -403,15 +427,12 @@ class MockSupabaseClient {
 
       update(updates: any) {
         const filters: Array<[string, any]> = [];
-        let selectedCols: string | null = null;
-
         const builder = {
           eq(column: string, value: any) {
             filters.push([column, value]);
             return builder;
           },
           select(columns?: string) {
-            selectedCols = columns || '*';
             return builder;
           },
           then(resolve: (val: { data: any; error: any }) => void) {
@@ -439,7 +460,11 @@ class MockSupabaseClient {
     if (this.rpcHandlers[fnName]) {
       return this.rpcHandlers[fnName](args);
     }
-    return Promise.resolve({ data: null, error: { code: 'P0001', message: `RPC ${fnName} not mocked` } });
+    // Default undefined function error matching PostgreSQL code 42883
+    return Promise.resolve({
+      data: null,
+      error: { code: '42883', message: `function ${fnName} does not exist` },
+    });
   }
 }
 
@@ -462,7 +487,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 7: Handler Rejects Invalid HMAC Signature (HTTP 400)
   // -------------------------------------------------------------------------
-  console.log('--- Test 7 [HANDLER]: Rejects Invalid HMAC Signature ---');
+  console.log('--- Test 7 [HANDLER - IN-MEMORY SIMULATION]: Rejects Invalid HMAC Signature ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -488,7 +513,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 8: Handler Enforces Strict Service Role Key Configuration (HTTP 500)
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 8 [HANDLER]: Enforces Strict Service Role Key Configuration ---');
+  console.log('\n--- Test 8 [HANDLER - IN-MEMORY SIMULATION]: Enforces Strict Service Role Key Configuration ---');
   {
     setWebhookSupabaseClientOverride(null); // Clear override to test real getWebhookSupabaseClient
     const savedKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -510,7 +535,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 9: Handler Gracefully Acknowledges Unlinked Test Pings (status = 'ignored')
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 9 [HANDLER]: Acknowledges Unlinked Test Pings ---');
+  console.log('\n--- Test 9 [HANDLER - IN-MEMORY SIMULATION]: Acknowledges Unlinked Test Pings ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -545,7 +570,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 10: Handler Successfully Provisions subscription.charged
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 10 [HANDLER]: Successfully Provisions subscription.charged ---');
+  console.log('\n--- Test 10 [HANDLER - IN-MEMORY SIMULATION]: Successfully Provisions subscription.charged ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -612,7 +637,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 11: Handler Returns Generic Error and Logs Failure on DB Write Failure
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 11 [HANDLER]: Generic External Error & Diagnostic Log on DB Failure ---');
+  console.log('\n--- Test 11 [HANDLER - IN-MEMORY SIMULATION]: Generic External Error & Diagnostic Log on DB Failure ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -665,7 +690,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 12: Handler Safely Recovers and Retries from status='failed'
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 12 [HANDLER]: Safely Recovers and Retries from failed State ---');
+  console.log('\n--- Test 12 [HANDLER - IN-MEMORY SIMULATION]: Safely Recovers and Retries from failed State ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -729,7 +754,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 13: Handler Deduplicates Duplicate Deliveries (already_processed)
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 13 [HANDLER]: Deduplicates Duplicate Deliveries ---');
+  console.log('\n--- Test 13 [HANDLER - IN-MEMORY SIMULATION]: Deduplicates Duplicate Deliveries ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -779,7 +804,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 14: Promise.all Concurrent Deliveries of the Same Unseen Event
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 14 [HANDLER - CONCURRENCY]: Promise.all Unseen Event ---');
+  console.log('\n--- Test 14 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Unseen Event ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -810,15 +835,12 @@ async function runHandlerIntegrationTests() {
     const reqA = createSignedWebhookRequest(chargedEvent);
     const reqB = createSignedWebhookRequest(chargedEvent);
 
-    // Execute concurrently via Promise.all
     const [resA, resB] = await Promise.all([POST(reqA), POST(reqB)]);
     const statuses = [resA.status, resB.status];
 
-    // Assert exactly one worker succeeded with 200, and the concurrent worker received 429
     assert.ok(statuses.includes(200), 'At least one worker must successfully process');
     assert.ok(statuses.includes(429) || statuses.filter(s => s === 200).length === 2, 'Concurrent worker must be serialized or deduplicated');
 
-    // Confirm that the workspace subscription was created exactly once
     const sub = mockDb.tables.business_subscriptions.get(businessId);
     assert.ok(sub);
     assert.equal(sub.status, 'active');
@@ -830,7 +852,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 15: Promise.all Concurrent Retries of a Failed Event
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 15 [HANDLER - CONCURRENCY]: Promise.all Concurrent Retries of Failed Event ---');
+  console.log('\n--- Test 15 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Retries of Failed Event ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -838,7 +860,6 @@ async function runHandlerIntegrationTests() {
     const businessId = 'biz_concurrent_failed_105';
     const eventId = 'evt_concurrent_failed_105';
 
-    // Seed existing failed event in ledger
     mockDb.tables.webhook_events.set(eventId, {
       event_id: eventId,
       status: 'failed',
@@ -882,7 +903,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 16: Promise.all Concurrent Reclaim of a Stale Processing Event (>60s)
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 16 [HANDLER - CONCURRENCY]: Promise.all Concurrent Reclaim of Stale Event ---');
+  console.log('\n--- Test 16 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Reclaim of Stale Event ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -890,7 +911,6 @@ async function runHandlerIntegrationTests() {
     const businessId = 'biz_concurrent_stale_106';
     const eventId = 'evt_concurrent_stale_106';
 
-    // Seed stale event: started 120s ago (> 60s)
     mockDb.tables.webhook_events.set(eventId, {
       event_id: eventId,
       status: 'processing',
@@ -933,7 +953,7 @@ async function runHandlerIntegrationTests() {
   // -------------------------------------------------------------------------
   // Test 17: Handler Strictly Rejects Payment with Mismatched Amount
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 17 [HANDLER - SECURITY]: Rejects Payment with Mismatched Amount ---');
+  console.log('\n--- Test 17 [HANDLER - IN-MEMORY SIMULATION]: Rejects Payment with Mismatched Amount ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -966,7 +986,6 @@ async function runHandlerIntegrationTests() {
     const json = await res.json();
     assert.equal(json.error, 'Webhook processing failed.');
 
-    // STRICT GUARANTEE: Workspace must NOT receive subscription or captured payment
     assert.equal(mockDb.tables.business_subscriptions.has(businessId), false, 'Underpaid subscription must not be created');
     assert.equal(mockDb.tables.payment_transactions.has('pay_underpaid_107'), false, 'Underpaid payment must not be recorded as captured');
 
@@ -978,9 +997,9 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 18: Handler Strictly Rejects Invalid Currency and Non-Captured Status
+  // Test 18: Handler Strictly Rejects Invalid Currency
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 18 [HANDLER - SECURITY]: Rejects Non-INR Currency & Non-Captured Status ---');
+  console.log('\n--- Test 18 [HANDLER - IN-MEMORY SIMULATION]: Rejects Non-INR Currency ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -1013,19 +1032,144 @@ async function runHandlerIntegrationTests() {
     assert.equal(mockDb.tables.business_subscriptions.has(businessId), false);
     assert.ok(mockDb.tables.webhook_events.get('evt_invalid_curr_108').error_message?.includes('Invalid currency'));
 
-    console.log('  ✔ Payment validation strictly rejected invalid currency and non-captured status');
+    console.log('  ✔ Payment validation strictly rejected invalid currency');
   }
 
   // -------------------------------------------------------------------------
-  // Test 19: Handler Strictly Rejects Failed Lifetime Slot Claim (No Bypass Fallback)
+  // Test 19: Handler Strictly Rejects Missing or Non-Captured Status in Subscription Flow
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 19 [HANDLER - SECURITY]: Rejects Failed Lifetime Slot Claim ---');
+  console.log('\n--- Test 19 [HANDLER - IN-MEMORY SIMULATION]: Rejects Missing Captured Status (Subscription) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
 
-    const victimBusinessId = 'biz_lifetime_victim_109';
-    const eventId = 'evt_lifetime_sold_out_109';
+    const businessId = 'biz_missing_status_sub_109';
+    const missingStatusEvent = {
+      event: 'subscription.charged',
+      id: 'evt_missing_status_sub_109',
+      payload: {
+        subscription: {
+          entity: {
+            id: 'sub_nostatus_109',
+            notes: { businessId, planId: 'starter' },
+          },
+        },
+        payment: {
+          entity: {
+            id: 'pay_nostatus_109',
+            amount: 4900,
+            currency: 'INR',
+            // Missing status property completely!
+          },
+        },
+      },
+    };
+
+    const req = createSignedWebhookRequest(missingStatusEvent);
+    const res = await POST(req);
+    assert.equal(res.status, 500, 'Missing payment status must be rejected with HTTP 500');
+    assert.equal(mockDb.tables.business_subscriptions.has(businessId), false, 'Subscription must not be activated');
+
+    const evt = mockDb.tables.webhook_events.get('evt_missing_status_sub_109');
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('Invalid or missing payment status'));
+
+    console.log('  ✔ Subscription charge strictly rejected when payment status is missing');
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 20: Handler Strictly Rejects Missing or Non-Captured Status in Lifetime Flow
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test 20 [HANDLER - IN-MEMORY SIMULATION]: Rejects Missing Captured Status (Lifetime) ---');
+  {
+    const mockDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(mockDb);
+
+    const businessId = 'biz_missing_status_lifetime_110';
+    const missingStatusEvent = {
+      event: 'order.paid',
+      id: 'evt_missing_status_lt_110',
+      payload: {
+        order: {
+          entity: {
+            id: 'order_nostatus_110',
+            notes: {
+              businessId,
+              planId: 'founding_lifetime',
+              billingType: 'lifetime_purchase',
+            },
+          },
+        },
+        payment: {
+          entity: {
+            id: 'pay_nostatus_110',
+            order_id: 'order_nostatus_110',
+            amount: 59900,
+            currency: 'INR',
+            // Missing status property completely!
+          },
+        },
+      },
+    };
+
+    const req = createSignedWebhookRequest(missingStatusEvent);
+    const res = await POST(req);
+    assert.equal(res.status, 500, 'Missing lifetime payment status must be rejected with HTTP 500');
+    assert.equal(mockDb.tables.business_subscriptions.has(businessId), false, 'Lifetime subscription must not be granted');
+
+    const evt = mockDb.tables.webhook_events.get('evt_missing_status_lt_110');
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('Invalid or missing payment status'));
+
+    console.log('  ✔ Lifetime purchase strictly rejected when payment status is missing');
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 21: Handler Does Not Silently Fall Back on Unexpected Claim RPC Errors
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test 21 [HANDLER - IN-MEMORY SIMULATION]: Rejects Unexpected Webhook Claim RPC Errors ---');
+  {
+    const mockDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(mockDb);
+
+    // Simulate unexpected database error during claim RPC (not 42883 undefined function)
+    mockDb.rpcHandlers['claim_webhook_event'] = async () => {
+      return {
+        data: null,
+        error: { code: '53300', message: 'connection pool exhausted' },
+      };
+    };
+
+    const event = {
+      event: 'subscription.charged',
+      id: 'evt_rpc_unexpected_111',
+      payload: {
+        subscription: { entity: { id: 'sub_test', notes: { businessId: 'b1', planId: 'starter' } } },
+        payment: { entity: { id: 'p1', amount: 4900, currency: 'INR', status: 'captured' } },
+      },
+    };
+
+    const req = createSignedWebhookRequest(event);
+    const res = await POST(req);
+    assert.equal(res.status, 500, 'Unexpected claim RPC error must return HTTP 500');
+
+    const evt = mockDb.tables.webhook_events.get('evt_rpc_unexpected_111');
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('Database error during webhook claim RPC: [53300]'));
+
+    console.log('  ✔ Handler strictly raised unexpected RPC error without silently falling back to optimistic locking');
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 22: Handler Strictly Rejects Failed Lifetime Slot Claim (Sold Out)
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test 22 [HANDLER - IN-MEMORY SIMULATION]: Rejects Failed Lifetime Slot Claim (Sold Out) ---');
+  {
+    const mockDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(mockDb);
+
+    const victimBusinessId = 'biz_lifetime_victim_112';
+    const eventId = 'evt_lifetime_sold_out_112';
 
     mockDb.rpcHandlers['claim_founding_lifetime_slot'] = async () => {
       return {
@@ -1079,36 +1223,29 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 20: Handler Strictly Rejects Duplicate Claim when Payment IDs Mismatch
+  // Test 23: Regression Test: Business Already Has Active Lifetime Slot & Receives Different Order/Payment
+  // (Even when claim RPC returns existing slot, handler strictly rejects mismatched purchase)
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 20 [HANDLER - SECURITY]: Rejects Mismatched Order/Payment Lifetime Duplicate ---');
+  console.log('\n--- Test 23 [HANDLER - IN-MEMORY SIMULATION]: Rejects Mismatched Lifetime Order/Payment ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
 
-    const businessId = 'biz_mismatched_lifetime_110';
-    const eventId = 'evt_mismatched_payment_110';
+    const businessId = 'biz_lifetime_occupied_113';
+    const eventId = 'evt_mismatched_payment_113';
 
-    // Workspace already has a lifetime slot for Order AAA / Payment AAA
+    // Business already has an active lifetime slot (#3) tied to order_AAA / pay_AAA
     mockDb.tables.business_subscriptions.set(businessId, {
       business_id: businessId,
       plan_id: 'founding_lifetime',
       status: 'active',
       is_lifetime: true,
-      lifetime_slot_number: 8,
+      lifetime_slot_number: 3,
       razorpay_order_id: 'order_AAA',
       razorpay_payment_id: 'pay_AAA',
     });
 
-    // RPC fails because workspace already has a slot
-    mockDb.rpcHandlers['claim_founding_lifetime_slot'] = async () => {
-      return {
-        data: null,
-        error: { code: 'P0001', message: 'Workspace already has lifetime slot.' },
-      };
-    };
-
-    // A NEW payment arrives with Order BBB / Payment BBB
+    // An event arrives for a DIFFERENT order and payment: order_BBB / pay_BBB
     const newPaymentEvent = {
       event: 'order.paid',
       id: eventId,
@@ -1137,32 +1274,36 @@ async function runHandlerIntegrationTests() {
 
     const req = createSignedWebhookRequest(newPaymentEvent);
     const res = await POST(req);
-    // MUST FAIL SAFELY: do not attribute mismatched payment to existing slot
-    assert.equal(res.status, 500);
+    assert.equal(res.status, 500, 'Mismatched order/payment must fail safely with HTTP 500');
 
+    // Confirm that the original subscription remains unmodified
+    const sub = mockDb.tables.business_subscriptions.get(businessId);
+    assert.equal(sub.razorpay_order_id, 'order_AAA', 'Existing order ID must not be overwritten');
+    assert.equal(sub.razorpay_payment_id, 'pay_AAA', 'Existing payment ID must not be overwritten');
+
+    // Confirm that the second payment was NOT recorded in payment_transactions
+    assert.equal(mockDb.tables.payment_transactions.has('pay_BBB'), false, 'Mismatched payment must NOT be recorded as captured');
+
+    // Verify webhook ledger failure status
     const evt = mockDb.tables.webhook_events.get(eventId);
     assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('already has an active lifetime slot'));
 
-    // Confirm original subscription was not altered
-    const sub = mockDb.tables.business_subscriptions.get(businessId);
-    assert.equal(sub.razorpay_order_id, 'order_AAA');
-    assert.equal(sub.razorpay_payment_id, 'pay_AAA');
-
-    console.log('  ✔ Correctly rejected mismatched payment IDs; only identical order and payment are treated as duplicate');
+    console.log('  ✔ Regression passed: Mismatched order/payment rejected without overwriting slot or transaction');
   }
 
   // -------------------------------------------------------------------------
-  // Test 21: Handler Idempotently Resolves Identical Verified Lifetime Duplicate
+  // Test 24: Handler Idempotently Resolves Exact Matching Lifetime Duplicate
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 21 [HANDLER]: Idempotently Resolves Matching Lifetime Duplicate ---');
+  console.log('\n--- Test 24 [HANDLER - IN-MEMORY SIMULATION]: Idempotently Resolves Matching Lifetime Duplicate ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
 
-    const businessId = 'biz_verified_lifetime_111';
-    const eventId = 'evt_verified_dup_111';
-    const orderId = 'order_verified_111';
-    const paymentId = 'pay_verified_111';
+    const businessId = 'biz_verified_lifetime_114';
+    const eventId = 'evt_verified_dup_114';
+    const orderId = 'order_verified_114';
+    const paymentId = 'pay_verified_114';
 
     // Workspace already has lifetime slot for EXACT same order and payment
     mockDb.tables.business_subscriptions.set(businessId, {
@@ -1174,13 +1315,6 @@ async function runHandlerIntegrationTests() {
       razorpay_order_id: orderId,
       razorpay_payment_id: paymentId,
     });
-
-    mockDb.rpcHandlers['claim_founding_lifetime_slot'] = async () => {
-      return {
-        data: null,
-        error: { code: 'P0001', message: 'Workspace already has lifetime slot.' },
-      };
-    };
 
     const orderPaidEvent = {
       event: 'order.paid',
@@ -1220,15 +1354,15 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 22: Handler Handles subscription.cancelled, halted, and payment.failed
+  // Test 25: Handler Handles subscription.cancelled, halted, and payment.failed
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 22 [HANDLER]: Lifecycle Transitions (cancelled, halted, payment.failed) ---');
+  console.log('\n--- Test 25 [HANDLER - IN-MEMORY SIMULATION]: Lifecycle Transitions (cancelled, halted, payment.failed) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
 
-    const subId = 'sub_lifecycle_112';
-    const businessId = 'biz_lifecycle_112';
+    const subId = 'sub_lifecycle_115';
+    const businessId = 'biz_lifecycle_115';
 
     mockDb.tables.business_subscriptions.set(businessId, {
       business_id: businessId,
@@ -1240,7 +1374,7 @@ async function runHandlerIntegrationTests() {
     // 1. Process subscription.cancelled
     const cancelReq = createSignedWebhookRequest({
       event: 'subscription.cancelled',
-      id: 'evt_cancel_112',
+      id: 'evt_cancel_115',
       payload: { subscription: { entity: { id: subId } } },
     });
     const resCancel = await POST(cancelReq);
@@ -1250,7 +1384,7 @@ async function runHandlerIntegrationTests() {
     // 2. Process subscription.halted
     const haltReq = createSignedWebhookRequest({
       event: 'subscription.halted',
-      id: 'evt_halt_112',
+      id: 'evt_halt_115',
       payload: { subscription: { entity: { id: subId } } },
     });
     const resHalt = await POST(haltReq);
@@ -1260,12 +1394,12 @@ async function runHandlerIntegrationTests() {
     // 3. Process payment.failed
     const failReq = createSignedWebhookRequest({
       event: 'payment.failed',
-      id: 'evt_pay_failed_112',
+      id: 'evt_pay_failed_115',
       payload: {
         payment: {
           entity: {
-            id: 'pay_failed_112',
-            amount: 19900,
+            id: 'pay_failed_115',
+            amount: 4900,
             currency: 'INR',
             error_code: 'BAD_REQUEST_ERROR',
             error_description: 'Card expired',
@@ -1276,7 +1410,7 @@ async function runHandlerIntegrationTests() {
     });
     const resFail = await POST(failReq);
     assert.equal(resFail.status, 200);
-    const tx = mockDb.tables.payment_transactions.get('pay_failed_112');
+    const tx = mockDb.tables.payment_transactions.get('pay_failed_115');
     assert.equal(tx.status, 'failed');
     assert.equal(tx.error_code, 'BAD_REQUEST_ERROR');
 
@@ -1288,10 +1422,10 @@ async function runHandlerIntegrationTests() {
 runHandlerIntegrationTests()
   .then(() => {
     console.log('\n================================================================');
-    console.log('🎉 ALL 22 WEBHOOK & SUBSCRIPTION AUDIT TESTS PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL 25 WEBHOOK & SUBSCRIPTION AUDIT TESTS PASSED SUCCESSFULLY!');
     console.log('   - 6 Helper-Level Pure Unit Tests');
-    console.log('   - 16 Handler-Level Route Integration Tests (POST + Database)');
-    console.log('   - Includes Promise.all concurrency, strict amounts, & lifetime security');
+    console.log('   - 19 Handler-Level Simulated Database Tests (POST + In-Memory Ledger)');
+    console.log('   - Explicit captured status, lifetime identity binding, & RPC safety verified');
     console.log('================================================================\n');
   })
   .catch((err) => {
