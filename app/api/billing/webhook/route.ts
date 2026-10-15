@@ -43,11 +43,10 @@ async function claimWebhookEvent(
       }
     }
   } else {
-    // Only fall back to optimistic table-level locking if the RPC is explicitly unavailable in PostgreSQL schema cache
-    const isRpcUnavailable =
-      rpcErr.code === '42883' || // PostgreSQL undefined_function
-      rpcErr.code === 'PGRST202' || // PostgREST function not found in schema cache
-      rpcErr.message?.includes('claim_webhook_event');
+    // Only fall back to optimistic table-level locking if the RPC is explicitly recognized as missing from the schema/cache:
+    // - '42883': PostgreSQL undefined_function (function does not exist)
+    // - 'PGRST202': PostgREST could not find the function in schema cache
+    const isRpcUnavailable = rpcErr.code === '42883' || rpcErr.code === 'PGRST202';
 
     if (!isRpcUnavailable) {
       // Unexpected RPC database failure: do NOT silently hide or swallow!

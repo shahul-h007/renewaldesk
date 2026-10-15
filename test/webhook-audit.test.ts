@@ -803,8 +803,9 @@ async function runHandlerIntegrationTests() {
 
   // -------------------------------------------------------------------------
   // Test 14: Promise.all Concurrent Deliveries of the Same Unseen Event
+  // [IN-MEMORY SIMULATION: Asserts route-level concurrency control in simulated mock store; NOT proof of real PostgreSQL concurrency]
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 14 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Unseen Event ---');
+  console.log('\n--- Test 14 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Unseen Event (Mock Store) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -846,13 +847,14 @@ async function runHandlerIntegrationTests() {
     assert.equal(sub.status, 'active');
     assert.equal(mockDb.tables.webhook_events.get(eventId).status, 'completed');
 
-    console.log('  ✔ Promise.all concurrent unseen deliveries serialized safely without duplicate side effects');
+    console.log('  ✔ [IN-MEMORY SIMULATION] Promise.all concurrent unseen deliveries serialized safely without duplicate side effects');
   }
 
   // -------------------------------------------------------------------------
   // Test 15: Promise.all Concurrent Retries of a Failed Event
+  // [IN-MEMORY SIMULATION: Asserts route-level concurrency control in simulated mock store; NOT proof of real PostgreSQL concurrency]
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 15 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Retries of Failed Event ---');
+  console.log('\n--- Test 15 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Retries of Failed Event (Mock Store) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -897,13 +899,14 @@ async function runHandlerIntegrationTests() {
     assert.ok(statuses.includes(200), 'One retry worker must succeed');
     assert.equal(mockDb.tables.webhook_events.get(eventId).status, 'completed');
 
-    console.log('  ✔ Promise.all concurrent retries of failed event resolved atomically to completed');
+    console.log('  ✔ [IN-MEMORY SIMULATION] Promise.all concurrent retries of failed event resolved atomically to completed');
   }
 
   // -------------------------------------------------------------------------
   // Test 16: Promise.all Concurrent Reclaim of a Stale Processing Event (>60s)
+  // [IN-MEMORY SIMULATION: Asserts route-level concurrency control in simulated mock store; NOT proof of real PostgreSQL concurrency]
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 16 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Reclaim of Stale Event ---');
+  console.log('\n--- Test 16 [HANDLER - IN-MEMORY SIMULATION]: Promise.all Concurrent Reclaim of Stale Event (Mock Store) ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
@@ -947,7 +950,7 @@ async function runHandlerIntegrationTests() {
     assert.ok(statuses.includes(200), 'Stale worker must be reclaimed and succeed');
     assert.equal(mockDb.tables.webhook_events.get(eventId).status, 'completed');
 
-    console.log('  ✔ Promise.all concurrent stale event reclaims handled atomically with zero race conditions');
+    console.log('  ✔ [IN-MEMORY SIMULATION] Promise.all concurrent stale event reclaims handled atomically with zero race conditions');
   }
 
   // -------------------------------------------------------------------------
@@ -1125,27 +1128,32 @@ async function runHandlerIntegrationTests() {
   }
 
   // -------------------------------------------------------------------------
-  // Test 21: Handler Does Not Silently Fall Back on Unexpected Claim RPC Errors
+  // Test 21: Regression Test: Unexpected Claim RPC Error Mentioning Function Name Returns HTTP 500 Without Fallback
   // -------------------------------------------------------------------------
-  console.log('\n--- Test 21 [HANDLER - IN-MEMORY SIMULATION]: Rejects Unexpected Webhook Claim RPC Errors ---');
+  console.log('\n--- Test 21 [HANDLER - IN-MEMORY SIMULATION]: Rejects Unexpected RPC Error Mentioning Function Name Without Fallback ---');
   {
     const mockDb = new MockSupabaseClient();
     setWebhookSupabaseClientOverride(mockDb);
 
-    // Simulate unexpected database error during claim RPC (not 42883 undefined function)
+    // Regression: An unexpected database error that mentions 'claim_webhook_event' in its message
+    // (e.g. deadlock, statement timeout, syntax error, or permission error).
+    // It must NOT match the fallback condition and must NOT attempt table-level fallback.
     mockDb.rpcHandlers['claim_webhook_event'] = async () => {
       return {
         data: null,
-        error: { code: '53300', message: 'connection pool exhausted' },
+        error: {
+          code: '40001',
+          message: 'deadlock detected in procedure claim_webhook_event: transaction aborted',
+        },
       };
     };
 
     const event = {
       event: 'subscription.charged',
-      id: 'evt_rpc_unexpected_111',
+      id: 'evt_rpc_deadlock_111',
       payload: {
-        subscription: { entity: { id: 'sub_test', notes: { businessId: 'b1', planId: 'starter' } } },
-        payment: { entity: { id: 'p1', amount: 4900, currency: 'INR', status: 'captured' } },
+        subscription: { entity: { id: 'sub_test_deadlock', notes: { businessId: 'biz_deadlock_111', planId: 'starter' } } },
+        payment: { entity: { id: 'pay_test_deadlock', amount: 4900, currency: 'INR', status: 'captured' } },
       },
     };
 
@@ -1153,11 +1161,41 @@ async function runHandlerIntegrationTests() {
     const res = await POST(req);
     assert.equal(res.status, 500, 'Unexpected claim RPC error must return HTTP 500');
 
-    const evt = mockDb.tables.webhook_events.get('evt_rpc_unexpected_111');
-    assert.equal(evt.status, 'failed');
-    assert.ok(evt.error_message?.includes('Database error during webhook claim RPC: [53300]'));
+    const json = await res.json();
+    assert.equal(json.error, 'Webhook processing failed.', 'Must return generic error message to external callers');
 
-    console.log('  ✔ Handler strictly raised unexpected RPC error without silently falling back to optimistic locking');
+    // Confirm that table-level fallback was NOT attempted:
+    // If fallback had been attempted, it would have inserted a 'processing' event and provisioned the subscription.
+    assert.equal(mockDb.tables.business_subscriptions.has('biz_deadlock_111'), false, 'Table-level fallback must NOT provision subscription');
+    assert.equal(mockDb.tables.payment_transactions.has('pay_test_deadlock'), false, 'Table-level fallback must NOT record transaction');
+
+    const evt = mockDb.tables.webhook_events.get('evt_rpc_deadlock_111');
+    assert.equal(evt.status, 'failed');
+    assert.ok(evt.error_message?.includes('Database error during webhook claim RPC: [40001] deadlock detected in procedure claim_webhook_event'));
+
+    // Also verify that PostgREST PGRST202 (function not found in schema cache) DOES cleanly trigger fallback
+    const pgrstDb = new MockSupabaseClient();
+    setWebhookSupabaseClientOverride(pgrstDb);
+    pgrstDb.rpcHandlers['claim_webhook_event'] = async () => {
+      return {
+        data: null,
+        error: { code: 'PGRST202', message: 'Could not find the function public.claim_webhook_event in the schema cache' },
+      };
+    };
+
+    const pgrstReq = createSignedWebhookRequest({
+      event: 'subscription.charged',
+      id: 'evt_pgrst202_fallback_111',
+      payload: {
+        subscription: { entity: { id: 'sub_pgrst', notes: { businessId: 'biz_pgrst_111', planId: 'starter' } } },
+        payment: { entity: { id: 'pay_pgrst', amount: 4900, currency: 'INR', status: 'captured' } },
+      },
+    });
+    const pgrstRes = await POST(pgrstReq);
+    assert.equal(pgrstRes.status, 200, 'PGRST202 must cleanly trigger table-level locking fallback');
+    assert.ok(pgrstDb.tables.business_subscriptions.has('biz_pgrst_111'), 'Subscription must be provisioned via fallback when PGRST202 is encountered');
+
+    console.log('  ✔ Regression passed: Unexpected RPC error mentioning function name returned generic HTTP 500 without fallback (PGRST202 fallback verified)');
   }
 
   // -------------------------------------------------------------------------
@@ -1425,6 +1463,7 @@ runHandlerIntegrationTests()
     console.log('🎉 ALL 25 WEBHOOK & SUBSCRIPTION AUDIT TESTS PASSED SUCCESSFULLY!');
     console.log('   - 6 Helper-Level Pure Unit Tests');
     console.log('   - 19 Handler-Level Simulated Database Tests (POST + In-Memory Ledger)');
+    console.log('   - Concurrency tests are IN-MEMORY SIMULATIONS, not proof of real PG concurrency');
     console.log('   - Explicit captured status, lifetime identity binding, & RPC safety verified');
     console.log('================================================================\n');
   })
