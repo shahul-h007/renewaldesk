@@ -422,77 +422,113 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto space-y-2 mb-14">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Simple, Transparent Pricing
+              Simple, Affordable Pricing
             </h2>
             <p className="text-xs sm:text-sm text-slate-500">
-              No long-term contracts. Pays for itself with a single recovered service call.
+              Clear capacity-based plans for small service businesses. Pays for itself with a single service call.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {/* Starter Tier */}
-            <div className="p-6 rounded-2xl border border-slate-200 space-y-4 flex flex-col justify-between">
+            <div className="p-6 rounded-2xl border border-slate-200 space-y-4 flex flex-col justify-between bg-white">
               <div className="space-y-4">
-                <h3 className="font-bold text-base text-slate-900">Starter</h3>
-                <div className="text-3xl font-black text-slate-900">₹299 <span className="text-xs font-normal text-slate-500">/ month</span></div>
-                <p className="text-xs text-slate-500">Ideal for independent technicians and local repair shops.</p>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Starter</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">For independent repair technicians.</p>
+                </div>
+                <div className="text-3xl font-black text-slate-900">
+                  ₹49 <span className="text-xs font-normal text-slate-500">/ month</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 text-xs font-semibold text-slate-700">
+                  Up to 25 active customers
+                </div>
                 <ul className="text-xs space-y-2 text-slate-600 pt-2 border-t border-slate-100">
-                  <li className="flex items-center gap-2">✓ Up to 300 customers</li>
-                  <li className="flex items-center gap-2">✓ Automated WhatsApp links</li>
+                  <li className="flex items-center gap-2">✓ Automated WhatsApp follow-up links</li>
+                  <li className="flex items-center gap-2">✓ Periodic cycle scheduling</li>
+                  <li className="flex items-center gap-2">✓ Multi-appliance customer profiles</li>
                   <li className="flex items-center gap-2">✓ Excel / CSV customer import</li>
                 </ul>
               </div>
               <Link
-                href="/signup"
+                href="/pricing"
                 className="block w-full py-2.5 text-center text-xs font-bold rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 transition-colors"
               >
-                Start Free Trial
+                Choose Starter
               </Link>
             </div>
 
-            {/* Growth Tier (Highlighted) */}
-            <div className="p-6 rounded-2xl border-2 border-blue-600 bg-blue-50/20 space-y-4 relative shadow-md flex flex-col justify-between">
-              <span className="absolute -top-3 right-6 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                Most Popular
+            {/* Business Tier (Recommended) */}
+            <div className="p-6 rounded-2xl border-2 border-blue-600 bg-white space-y-4 relative shadow-lg flex flex-col justify-between ring-4 ring-blue-50">
+              <span className="absolute -top-3 right-6 bg-blue-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Recommended
               </span>
               <div className="space-y-4">
-                <h3 className="font-bold text-base text-slate-900">Growth</h3>
-                <div className="text-3xl font-black text-slate-900">₹599 <span className="text-xs font-normal text-slate-500">/ month</span></div>
-                <p className="text-xs text-slate-500">For established service centers and multi-technician teams.</p>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Business</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Ideal for growing local service shops.</p>
+                </div>
+                <div className="text-3xl font-black text-slate-900">
+                  ₹199 <span className="text-xs font-normal text-slate-500">/ month</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-blue-50 text-xs font-bold text-blue-900">
+                  Up to 250 active customers
+                </div>
                 <ul className="text-xs space-y-2 text-slate-600 pt-2 border-t border-blue-100">
-                  <li className="flex items-center gap-2">✓ Up to 1,000 customers</li>
-                  <li className="flex items-center gap-2">✓ Multiple appliances per customer</li>
-                  <li className="flex items-center gap-2">✓ Custom message templates</li>
-                  <li className="flex items-center gap-2">✓ Recovered revenue reporting</li>
+                  <li className="flex items-center gap-2">✓ Complete follow-up queue management</li>
+                  <li className="flex items-center gap-2">✓ Bulk CSV customer importing</li>
+                  <li className="flex items-center gap-2">✓ Custom WhatsApp reminder templates</li>
+                  <li className="flex items-center gap-2">✓ Service history & revenue tracking</li>
                 </ul>
               </div>
               <Link
-                href="/signup"
+                href="/pricing"
                 className="block w-full py-2.5 text-center text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors"
               >
-                Start Free Trial
+                Choose Business
               </Link>
             </div>
 
-            {/* Business Tier */}
-            <div className="p-6 rounded-2xl border border-slate-200 space-y-4 flex flex-col justify-between">
+            {/* Founding Lifetime Offer */}
+            <div className="p-6 rounded-2xl border-2 border-amber-500 bg-gradient-to-b from-amber-50/50 to-white space-y-4 relative shadow-md flex flex-col justify-between">
+              <span className="absolute -top-3 right-6 bg-amber-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Launch Offer
+              </span>
               <div className="space-y-4">
-                <h3 className="font-bold text-base text-slate-900">Business</h3>
-                <div className="text-3xl font-black text-slate-900">₹999 <span className="text-xs font-normal text-slate-500">/ month</span></div>
-                <p className="text-xs text-slate-500">For high-volume operations and AMC contracts.</p>
-                <ul className="text-xs space-y-2 text-slate-600 pt-2 border-t border-slate-100">
-                  <li className="flex items-center gap-2">✓ Up to 3,000 customers</li>
-                  <li className="flex items-center gap-2">✓ Priority phone support</li>
-                  <li className="flex items-center gap-2">✓ Unlimited appliances per customer</li>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Founding Lifetime</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Pay once, use RenewalDesk forever.</p>
+                </div>
+                <div className="text-3xl font-black text-slate-900">
+                  ₹599 <span className="text-xs font-normal text-slate-500">one-time</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-amber-100/60 text-xs font-bold text-amber-900">
+                  100 active customers • Limited to 25 slots
+                </div>
+                <ul className="text-xs space-y-2 text-slate-600 pt-2 border-t border-amber-100">
+                  <li className="flex items-center gap-2">✓ Zero recurring subscription fees</li>
+                  <li className="flex items-center gap-2">✓ 100 active customer capacity</li>
+                  <li className="flex items-center gap-2">✓ Complete core feature access</li>
+                  <li className="flex items-center gap-2">✓ Dedicated founding customer status</li>
                 </ul>
               </div>
               <Link
-                href="/signup"
-                className="block w-full py-2.5 text-center text-xs font-bold rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 transition-colors"
+                href="/pricing"
+                className="block w-full py-2.5 text-center text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-colors"
               >
-                Start Free Trial
+                Claim Lifetime (₹599)
               </Link>
             </div>
+          </div>
+
+          <div className="text-center mt-10">
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              <span>View all 6 plans (Growth, Scale, Large Business up to 2,000 customers)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </section>

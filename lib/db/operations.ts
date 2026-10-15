@@ -2,6 +2,12 @@ import { createClient } from '../supabase/client';
 import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit } from '../types';
 import { calculateDueStatus, calculateNextDueDate } from '../due-date-engine';
 import { DbCustomer, DbAsset, DbServiceType, DbServiceSchedule, DbReminder, DbMessageTemplate, DbBusiness } from './types';
+import {
+  checkBusinessCustomerCapacity,
+  CustomerLimitReachedError,
+  TrialNotStartedError,
+  TrialExpiredError,
+} from '../billing/limits';
 
 /**
  * Fetch all operational data for a given business from Supabase.
@@ -99,6 +105,18 @@ export async function createCustomerInDb(
   serviceData: Omit<ServiceRecord, 'id' | 'customerId' | 'assetId' | 'urgency'>
 ) {
   const supabase = createClient();
+
+  // 0. Enforce active-customer capacity and trial entitlement limit
+  const capacity = await checkBusinessCustomerCapacity(supabase, businessId, 1);
+  if (!capacity.allowed) {
+    if (capacity.trialStatus === 'not_started') {
+      throw new TrialNotStartedError();
+    }
+    if (capacity.isTrialExpired || capacity.trialStatus === 'expired') {
+      throw new TrialExpiredError();
+    }
+    throw new CustomerLimitReachedError(capacity.currentCount, capacity.maxCapacity, capacity.planName);
+  }
 
   // 1. Insert customer
   const { data: customerRow, error: custErr } = await supabase
@@ -305,6 +323,47 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
 }
 
 /**
+ * Reactivate an archived customer (subject to active capacity check).
+ */
+export async function reactivateCustomerInDb(businessId: string, customerId: string) {
+  const supabase = createClient();
+
+  // Enforce customer capacity and trial entitlement check
+  const capacity = await checkBusinessCustomerCapacity(supabase, businessId, 1);
+  if (!capacity.allowed) {
+    if (capacity.trialStatus === 'not_started') {
+      throw new TrialNotStartedError();
+    }
+    if (capacity.isTrialExpired || capacity.trialStatus === 'expired') {
+      throw new TrialExpiredError();
+    }
+    throw new CustomerLimitReachedError(capacity.currentCount, capacity.maxCapacity, capacity.planName);
+  }
+
+  const { data: reactivatedCustomer, error: custErr } = await supabase
+    .from('customers')
+    .update({
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
+
+  if (custErr) throw custErr;
+  if (!reactivatedCustomer) throw new Error('Customer was not found in this workspace or cannot be reactivated.');
+
+  // Log activity
+  await supabase.from('activities').insert({
+    business_id: businessId,
+    customer_id: customerId,
+    action_type: 'CUSTOMER_REACTIVATED',
+    description: `Reactivated customer ${customerId}`,
+  });
+}
+
+/**
  * Bulk import normalized customers, assets, and service schedules from CSV rows into the database.
  */
 export interface CsvImportOutcome {
@@ -317,14 +376,42 @@ export async function importCustomersFromCSVInDb(
   businessId: string,
   validRows: any[]
 ): Promise<CsvImportOutcome> {
+  const supabase = createClient();
+  const capacity = await checkBusinessCustomerCapacity(supabase, businessId, validRows.length);
+
+  // If trial not started or expired, or already at capacity, reject early with clear message
+  if (!capacity.allowed || capacity.remainingCapacity <= 0) {
+    let reason = `Active customer plan limit reached (${capacity.currentCount}/${capacity.maxCapacity} in ${capacity.planName}). Upgrade your plan or archive inactive records to import customer records.`;
+    if (capacity.trialStatus === 'not_started') {
+      reason = 'Free trial has not been activated. Click "Start 14-Day Free Trial" before importing customer records.';
+    } else if (capacity.isTrialExpired || capacity.trialStatus === 'expired') {
+      reason = 'Your 14-day free trial has expired. Upgrade to a paid plan to import customer records.';
+    }
+    return {
+      importedCount: 0,
+      failedCount: validRows.length,
+      errors: [reason],
+    };
+  }
+
   let importedCount = 0;
   let failedCount = 0;
   const errors: string[] = [];
+  const maxCanImport = capacity.remainingCapacity;
 
   for (let index = 0; index < validRows.length; index++) {
     const row = validRows[index];
     const norm = row.normalized;
     if (!norm) continue;
+
+    // Check if remaining capacity for this batch is exhausted
+    if (importedCount >= maxCanImport) {
+      failedCount++;
+      if (errors.length < 5) {
+        errors.push(`CSV row ${index + 1}: Skipped because active customer limit (${capacity.maxCapacity} in ${capacity.planName}) was reached. Upgrade your plan to import remaining customers.`);
+      }
+      continue;
+    }
 
     try {
       await createCustomerInDb(

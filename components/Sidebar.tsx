@@ -19,6 +19,7 @@ import {
   LogIn,
   Database,
   Cloud,
+  CreditCard,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -38,6 +39,7 @@ export function Sidebar() {
     { label: 'WhatsApp Templates', href: '/templates', icon: MessageSquare },
     { label: 'Results & Revenue', href: '/results', icon: BarChart2 },
     { label: 'Service Cycles', href: '/services', icon: Wrench },
+    { label: 'Billing & Plans', href: '/billing', icon: CreditCard },
     { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
