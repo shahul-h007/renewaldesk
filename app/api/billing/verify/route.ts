@@ -50,7 +50,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
     }
 
-    // 2. Idempotency Check: Check if this payment was already verified and captured in DB
+    // 2. Security Check: Block verification if payment gateway credentials are not configured
+    const { isConfigured } = getRazorpayCredentials();
+    if (!isConfigured) {
+      return NextResponse.json(
+        {
+          error: 'Online payments are not available yet. Paid plans cannot be activated at this time.',
+          paymentsAvailable: false,
+        },
+        { status: 503 }
+      );
+    }
+
+    // 3. Cryptographic Signature is strictly required
+    if (!signature) {
+      return NextResponse.json(
+        { error: 'Missing payment signature. This transaction cannot be verified.' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Idempotency Check: Check if this payment was already verified and captured in DB
     const { data: existingTx } = await supabase
       .from('payment_transactions')
       .select('status, plan_id')
@@ -104,8 +124,6 @@ export async function POST(request: Request) {
     }
 
     // 4. Zero-Trust API Payment Confirmation (Confirm status === 'captured' via Razorpay API)
-    const { isConfigured } = getRazorpayCredentials();
-    if (isConfigured) {
       try {
         const razorpay = getRazorpayInstance();
         const payment = await razorpay.payments.fetch(paymentId);
@@ -164,14 +182,11 @@ export async function POST(request: Request) {
         }
       } catch (rzpErr: any) {
         console.error('Error confirming payment status with Razorpay API:', rzpErr);
-        if (rzpErr?.statusCode === 404) {
-          return NextResponse.json(
-            { error: 'Payment ID was not found with payment provider.' },
-            { status: 404 }
-          );
-        }
+        return NextResponse.json(
+          { error: 'Payment ID could not be verified with payment provider.' },
+          { status: rzpErr?.statusCode === 404 ? 404 : 502 }
+        );
       }
-    }
 
     // 5. Grant Entitlement & Update Database
     if (plan.id === 'founding_lifetime') {

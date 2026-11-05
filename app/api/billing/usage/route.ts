@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getRazorpayCredentials } from '@/lib/billing/razorpay';
 import {
   getPlanById,
   PLANS,
@@ -15,6 +16,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get('businessId');
 
+    const { isConfigured } = getRazorpayCredentials();
+
+    if (!businessId) {
+      return NextResponse.json({
+        paymentsConfigured: isConfigured,
+      });
+    }
+
     const supabase = createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -22,9 +31,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
 
-    if (!businessId) {
-      return NextResponse.json({ error: 'Missing businessId parameter.' }, { status: 400 });
-    }
+    
 
     // Verify membership
     const { data: membership } = await supabase
@@ -140,8 +147,9 @@ export async function GET(request: Request) {
         cancelAtPeriodEnd: sub?.cancel_at_period_end || false,
       },
       lifetimeSlotsClaimed: lifetimeCount ?? 0,
-      lifetimeSlotsTotal: FOUNDING_LIFETIME_MAX_SLOTS,
-      role: membership.role,
+      lifetimeSlotsTotal: FOUNDING_LIFETIME_MAX_SLOTS,
+      role: membership.role,
+      paymentsConfigured: isConfigured,
     });
   } catch (err: any) {
     console.error('Error fetching billing usage:', err);

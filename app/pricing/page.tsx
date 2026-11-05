@@ -39,6 +39,26 @@ export default function PricingPage() {
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
   const [pendingVerificationPayload, setPendingVerificationPayload] = useState<any>(null);
   const [isRetryingVerification, setIsRetryingVerification] = useState(false);
+  const [paymentsConfigured, setPaymentsConfigured] = useState<boolean>(
+    Boolean(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID)
+  );
+
+  useEffect(() => {
+    async function checkPaymentStatus() {
+      try {
+        const res = await fetch('/api/billing/usage');
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.paymentsConfigured === 'boolean') {
+            setPaymentsConfigured(data.paymentsConfigured);
+          }
+        }
+      } catch {
+        // fallback to NEXT_PUBLIC_RAZORPAY_KEY_ID
+      }
+    }
+    checkPaymentStatus();
+  }, []);
 
   // Fetch current usage and lifetime slots claimed
   useEffect(() => {
@@ -51,6 +71,9 @@ export default function PricingPage() {
             setActivePlanId(data?.usage?.planId || null);
             setLifetimeSlotsClaimed(data?.lifetimeSlotsClaimed || 0);
             setTrialInfo(data?.trial || null);
+            if (typeof data?.paymentsConfigured === 'boolean') {
+              setPaymentsConfigured(data.paymentsConfigured);
+            }
           }
         } catch (e) {
           console.error('Failed to load billing usage', e);

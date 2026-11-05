@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const { keyId, isConfigured } = getRazorpayCredentials();
     if (!isConfigured) {
       return NextResponse.json(
-        { error: 'Razorpay is not yet configured on this server. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.' },
+        { error: 'Online payments are not available yet. Please use the 14-day free trial.', paymentsAvailable: false },
         { status: 503 }
       );
     }
