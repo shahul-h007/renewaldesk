@@ -49,3 +49,4 @@ coverage/
 .temp/
 supabase/.temp/
 brag-output/
+.vercel
