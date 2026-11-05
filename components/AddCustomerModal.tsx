@@ -5,6 +5,7 @@ import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { IntervalUnit } from '@/lib/types';
 import { getCategoryMetadata } from '@/lib/catalog-presets';
+import { normalizePhoneNumber } from '@/lib/csv-import';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -27,7 +28,7 @@ interface AddCustomerModalProps {
 }
 
 export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
-  const { addCustomer, business, catalog } = useRenewalDesk();
+  const { addCustomer, business, catalog, customers } = useRenewalDesk();
   const categoryMeta = getCategoryMetadata(business?.industry);
 
   const sixMonthsAgo = () => {
@@ -40,6 +41,11 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [lastServiceDate, setLastServiceDate] = useState(sixMonthsAgo());
+
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const existingCustomerMatch = normalizedPhone.length >= 10
+    ? customers.find((c) => normalizePhoneNumber(c.phone) === normalizedPhone)
+    : null;
 
   const activeCatalog = catalog.filter(c => c.isActive !== false);
   const defaultItem = activeCatalog[0] || catalog[0];
@@ -207,15 +213,25 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
               onChange={(e) => setName(e.target.value)}
             />
 
-            <Input
-              label="Mobile / WhatsApp Number"
-              required
-              type="tel"
-              placeholder="e.g. 9846011222"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              helperText="10-digit phone for 1-click WhatsApp reminders."
-            />
+            <div>
+              <Input
+                label="Mobile / WhatsApp Number"
+                required
+                type="tel"
+                placeholder="e.g. 9846011222"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                helperText="10-digit phone for 1-click WhatsApp reminders."
+              />
+              {existingCustomerMatch && (
+                <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    A customer with this phone number already exists (<strong>{existingCustomerMatch.name}</strong>). You can still proceed if this is a shared number or second appliance.
+                  </span>
+                </div>
+              )}
+            </div>
 
             <Select
               label="Service Type"

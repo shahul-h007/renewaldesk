@@ -1,3 +1,5 @@
+import { getCategoryMetadata } from './catalog-presets';
+
 export interface CSVMapping {
   nameCol: string;
   phoneCol: string;
@@ -12,11 +14,21 @@ export interface CSVMapping {
   landmarkCol?: string;
 }
 
+export interface ExistingCustomerMatch {
+  name: string;
+  phone: string;
+  isArchived?: boolean;
+}
+
 export interface ParsedCSVRow {
   rowIndex: number;
   raw: Record<string, string>;
   isValid: boolean;
   errors: string[];
+  warnings?: string[];
+  isDuplicateInCSV?: boolean;
+  isExistingCustomer?: boolean;
+  existingCustomerName?: string;
   normalized?: {
     name: string;
     phone: string;
@@ -29,6 +41,7 @@ export interface ParsedCSVRow {
     city?: string;
     pincode?: string;
     landmark?: string;
+    isSample?: boolean;
   };
 }
 
@@ -37,7 +50,26 @@ export interface CSVParseResult {
   totalRows: number;
   validRows: ParsedCSVRow[];
   invalidRows: ParsedCSVRow[];
+  duplicateCSVRows: ParsedCSVRow[];
+  existingCustomerRows: ParsedCSVRow[];
   suggestedMapping: CSVMapping;
+}
+
+export interface ValidateOptions {
+  defaultIntervalMonths?: number;
+  existingCustomers?: ExistingCustomerMatch[];
+  defaultAssetLabel?: string;
+  category?: string;
+}
+
+/**
+ * Normalizes phone numbers to digits only, taking the last 10 digits.
+ * e.g., '+91 98460 55441' -> '9846055441', '09846055441' -> '9846055441'
+ */
+export function normalizePhoneNumber(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
 }
 
 /**
@@ -143,18 +175,50 @@ export function normalizeDate(dateStr: string): string {
 }
 
 /**
- * Validates rows against business rules.
+ * Validates rows against business rules, flags duplicates, and maps to application domain model.
  */
 export function validateAndMapRows(
   rows: Record<string, string>[],
   mapping: CSVMapping,
-  defaultIntervalMonths = 6
-): { validRows: ParsedCSVRow[]; invalidRows: ParsedCSVRow[] } {
+  optionsOrDefault: number | ValidateOptions = 6
+): {
+  validRows: ParsedCSVRow[];
+  invalidRows: ParsedCSVRow[];
+  duplicateCSVRows: ParsedCSVRow[];
+  existingCustomerRows: ParsedCSVRow[];
+} {
+  const defaultIntervalMonths =
+    typeof optionsOrDefault === 'number'
+      ? optionsOrDefault
+      : optionsOrDefault?.defaultIntervalMonths ?? 6;
+
+  const existingCustomers =
+    typeof optionsOrDefault === 'object' && optionsOrDefault?.existingCustomers
+      ? optionsOrDefault.existingCustomers
+      : [];
+
+  // Determine industry-aware default asset label (eliminating hardcoded 'AC Unit')
+  const defaultAssetLabel =
+    typeof optionsOrDefault === 'object' && optionsOrDefault?.defaultAssetLabel
+      ? optionsOrDefault.defaultAssetLabel
+      : typeof optionsOrDefault === 'object' && optionsOrDefault?.category
+      ? getCategoryMetadata(optionsOrDefault.category).assetLabel
+      : 'Air Conditioner';
+
   const validRows: ParsedCSVRow[] = [];
   const invalidRows: ParsedCSVRow[] = [];
+  const duplicateCSVRows: ParsedCSVRow[] = [];
+  const existingCustomerRows: ParsedCSVRow[] = [];
+
+  // Track seen phones inside this CSV for intra-CSV duplicate detection
+  const seenPhonesInCSV = new Map<string, number>();
 
   rows.forEach((raw, idx) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
+    let isDuplicateInCSV = false;
+    let isExistingCustomer = false;
+    let existingCustomerName: string | undefined = undefined;
 
     const name = (raw[mapping.nameCol] || '').trim();
     if (!name) {
@@ -162,12 +226,35 @@ export function validateAndMapRows(
     }
 
     const rawPhone = (raw[mapping.phoneCol] || '').trim();
-    const digitsOnly = rawPhone.replace(/\D/g, '');
-    if (digitsOnly.length < 10) {
+    const normalizedPhone = normalizePhoneNumber(rawPhone);
+
+    if (normalizedPhone.length < 10) {
       errors.push('Invalid phone number (must have at least 10 digits)');
+    } else {
+      // 1. Check duplicate within CSV
+      if (seenPhonesInCSV.has(normalizedPhone)) {
+        isDuplicateInCSV = true;
+        warnings.push(`Duplicate phone in this CSV (matches row ${seenPhonesInCSV.get(normalizedPhone)})`);
+      } else {
+        seenPhonesInCSV.set(normalizedPhone, idx + 1);
+      }
+
+      // 2. Check existing shop customers (active or archived)
+      const existingMatch = existingCustomers.find(
+        (c) => normalizePhoneNumber(c.phone) === normalizedPhone
+      );
+      if (existingMatch) {
+        isExistingCustomer = true;
+        existingCustomerName = existingMatch.name;
+        warnings.push(
+          `Phone already registered to ${existingMatch.name}${existingMatch.isArchived ? ' (Archived)' : ''}`
+        );
+      }
     }
 
-    const assetName = (raw[mapping.assetCol] || 'AC Unit').trim();
+    // Default asset label is now category-aware (e.g. 'Water Purifier' for RO, 'Vehicle / Reg No.' for auto)
+    const rawAsset = (raw[mapping.assetCol] || '').trim();
+    const assetName = rawAsset || defaultAssetLabel;
     let lastServiceDate = normalizeDate(raw[mapping.lastDateCol] || '');
     let nextDueDate = normalizeDate(raw[mapping.nextDateCol] || '');
 
@@ -202,9 +289,13 @@ export function validateAndMapRows(
       raw,
       isValid: errors.length === 0,
       errors,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      isDuplicateInCSV,
+      isExistingCustomer,
+      existingCustomerName,
       normalized: errors.length === 0 ? {
         name,
-        phone: rawPhone,
+        phone: normalizedPhone,
         assetName,
         lastServiceDate,
         nextDueDate,
@@ -219,10 +310,16 @@ export function validateAndMapRows(
 
     if (parsedRow.isValid) {
       validRows.push(parsedRow);
+      if (isDuplicateInCSV) {
+        duplicateCSVRows.push(parsedRow);
+      }
+      if (isExistingCustomer) {
+        existingCustomerRows.push(parsedRow);
+      }
     } else {
       invalidRows.push(parsedRow);
     }
   });
 
-  return { validRows, invalidRows };
+  return { validRows, invalidRows, duplicateCSVRows, existingCustomerRows };
 }

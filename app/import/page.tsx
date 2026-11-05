@@ -1,11 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
-import { parseCSVText, guessMapping, validateAndMapRows, CSVMapping, ParsedCSVRow } from '@/lib/csv-import';
+import {
+  parseCSVText,
+  guessMapping,
+  validateAndMapRows,
+  normalizePhoneNumber,
+  CSVMapping,
+  ParsedCSVRow,
+  ExistingCustomerMatch,
+} from '@/lib/csv-import';
+import { fetchArchivedCustomersInDb } from '@/lib/db/operations';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -24,6 +34,8 @@ import {
   Sparkles,
   ChevronRight,
   Info,
+  Trash2,
+  Copy,
 } from 'lucide-react';
 
 const SAMPLE_CSV = `Customer Name,Mobile,Appliance Model,Last Service,Next Due Date,Fee,Address,Locality,City,PIN Code,Landmark
@@ -37,7 +49,8 @@ type WizardStep = 1 | 2 | 3 | 4;
 
 export default function ImportPage() {
   const router = useRouter();
-  const { importCustomersFromCSV } = useRenewalDesk();
+  const { customers, deleteCustomer, importCustomersFromCSV, business, isDatabaseMode } = useRenewalDesk();
+  const { business: authBiz } = useAuth();
 
   const [step, setStep] = useState<WizardStep>(1);
   const [csvText, setCsvText] = useState('');
@@ -45,6 +58,9 @@ export default function ImportPage() {
   const [fileSize, setFileSize] = useState<string>('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<Record<string, string>[]>([]);
+  const [isSampleImport, setIsSampleImport] = useState(false);
+  const [sampleRemoved, setSampleRemoved] = useState(false);
+
   const [mapping, setMapping] = useState<CSVMapping>({
     nameCol: '',
     phoneCol: '',
@@ -61,6 +77,29 @@ export default function ImportPage() {
 
   const [validRows, setValidRows] = useState<ParsedCSVRow[]>([]);
   const [invalidRows, setInvalidRows] = useState<ParsedCSVRow[]>([]);
+  const [duplicateCSVRows, setDuplicateCSVRows] = useState<ParsedCSVRow[]>([]);
+  const [existingCustomerRows, setExistingCustomerRows] = useState<ParsedCSVRow[]>([]);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+
+  // Archived customer phone numbers cache
+  const [archivedCustomers, setArchivedCustomers] = useState<ExistingCustomerMatch[]>([]);
+
+  useEffect(() => {
+    if (isDatabaseMode && authBiz?.id) {
+      fetchArchivedCustomersInDb(authBiz.id)
+        .then((archived) => {
+          setArchivedCustomers(
+            archived.map((c) => ({
+              name: c.name,
+              phone: c.phone,
+              isArchived: true,
+            }))
+          );
+        })
+        .catch(() => {});
+    }
+  }, [isDatabaseMode, authBiz?.id]);
+
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const [importFailedCount, setImportFailedCount] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
@@ -76,13 +115,14 @@ export default function ImportPage() {
       return;
     }
 
+    setIsSampleImport(false);
     setFileName(file.name);
     setFileSize(`${(file.size / 1024).toFixed(1)} KB`);
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      processCSVContent(content);
+      processCSVContent(content, file.name);
     };
     reader.readAsText(file);
   };
@@ -104,6 +144,8 @@ export default function ImportPage() {
   };
 
   const handleUseSample = () => {
+    setIsSampleImport(true);
+    setSampleRemoved(false);
     setFileName('sample_kochi_ac_customers.csv');
     setFileSize('1.8 KB');
     processCSVContent(SAMPLE_CSV, 'sample_kochi_ac_customers.csv');
@@ -127,21 +169,59 @@ export default function ImportPage() {
       return;
     }
 
-    const { validRows: v, invalidRows: inv } = validateAndMapRows(rawRows, mapping);
-    setValidRows(v);
-    setInvalidRows(inv);
+    const existingMatches: ExistingCustomerMatch[] = [
+      ...customers.map((c) => ({ name: c.name, phone: c.phone, isArchived: false })),
+      ...archivedCustomers,
+    ];
+
+    const result = validateAndMapRows(rawRows, mapping, {
+      defaultIntervalMonths: business?.defaultIntervalMonths || 6,
+      existingCustomers: existingMatches,
+      category: business?.industry,
+    });
+
+    setValidRows(result.validRows);
+    setInvalidRows(result.invalidRows);
+    setDuplicateCSVRows(result.duplicateCSVRows);
+    setExistingCustomerRows(result.existingCustomerRows);
     setStep(3);
   };
 
+  // Determine which rows will be imported based on skipDuplicates toggle
+  const rowsToImport = skipDuplicates
+    ? validRows.filter((r) => !r.isDuplicateInCSV && !r.isExistingCustomer)
+    : validRows;
+
+  const totalDuplicatesCount = validRows.filter(
+    (r) => r.isDuplicateInCSV || r.isExistingCustomer
+  ).length;
+
   const handleConfirmImport = async () => {
-    if (isImporting || validRows.length === 0) return;
+    if (isImporting || rowsToImport.length === 0) return;
     setIsImporting(true);
     setImportError(null);
     setImportWarning(null);
     setStep(4);
 
     try {
-      const result = await importCustomersFromCSV(validRows);
+      // If sample import, tag records cleanly with [Sample Data] notes
+      const payload = isSampleImport
+        ? rowsToImport.map((r) => {
+            if (!r.normalized) return r;
+            return {
+              ...r,
+              normalized: {
+                ...r.normalized,
+                isSample: true,
+                address: r.normalized.address
+                  ? `${r.normalized.address} [Sample Data]`
+                  : '[Sample Data]',
+              },
+            };
+          })
+        : rowsToImport;
+
+      const result = await importCustomersFromCSV(payload);
       if (!result.success) {
         setImportError(result.error || 'The import did not complete. No success has been reported.');
         return;
@@ -160,6 +240,27 @@ export default function ImportPage() {
     }
   };
 
+  const handleRemoveSampleData = () => {
+    // Find all customers created from sample import (matching the 5 sample phone numbers or names)
+    const samplePhones = new Set(['9846055441', '9745123490', '9847098112', '9946011998', '9846111222']);
+    const sampleCusts = customers.filter(
+      (c) =>
+        samplePhones.has(normalizePhoneNumber(c.phone)) ||
+        c.address?.includes('[Sample Data]') ||
+        c.name === 'Suresh Menon' ||
+        c.name === 'Vipin Das' ||
+        c.name === 'Latha Nair' ||
+        c.name === 'Robin Mathew' ||
+        c.name === 'Deepa Thomas'
+    );
+
+    sampleCusts.forEach((c) => {
+      deleteCustomer(c.id);
+    });
+
+    setSampleRemoved(true);
+  };
+
   const resetWizard = () => {
     setStep(1);
     setCsvText('');
@@ -169,10 +270,14 @@ export default function ImportPage() {
     setRawRows([]);
     setValidRows([]);
     setInvalidRows([]);
+    setDuplicateCSVRows([]);
+    setExistingCustomerRows([]);
     setImportedCount(null);
     setImportFailedCount(0);
     setImportError(null);
     setImportWarning(null);
+    setIsSampleImport(false);
+    setSampleRemoved(false);
   };
 
   const stepsList = [
@@ -191,7 +296,7 @@ export default function ImportPage() {
         {/* Wizard Progress Bar */}
         <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/90 shadow-xs">
           <div className="grid grid-cols-4 gap-2 sm:gap-4 relative">
-            {stepsList.map((s, idx) => {
+            {stepsList.map((s) => {
               const isPassed = step > s.num;
               const isCurrent = step === s.num;
               return (
@@ -231,6 +336,25 @@ export default function ImportPage() {
             })}
           </div>
         </div>
+
+        {/* Sample Mode Banner */}
+        {isSampleImport && (
+          <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>
+                <strong>Sample Test Mode:</strong> You are testing with 5 sample Kochi AC customer records. No real customers are affected, and you can remove them with one tap at any time.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={resetWizard}
+              className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline shrink-0 ml-2"
+            >
+              Cancel Sample
+            </button>
+          </div>
+        )}
 
         {/* STEP 1: Upload File */}
         {step === 1 && (
@@ -591,53 +715,110 @@ export default function ImportPage() {
             <CardHeader>
               <CardTitle>Validation Summary</CardTitle>
               <CardDescription>
-                Review your parsed records before adding them to your live follow-up queue.
+                Review your parsed records, inspect duplicates, and confirm before adding them to your live follow-up queue.
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               {/* Validation Status Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-6 h-6" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-2xl font-extrabold text-emerald-950 font-mono block">
-                      {validRows.length}
+                    <span className="text-xl font-extrabold text-emerald-950 font-mono block">
+                      {rowsToImport.length}
                     </span>
                     <span className="text-xs text-emerald-700 font-semibold">
-                      Ready to Import into RenewalDesk
+                      Ready to Import
                     </span>
                   </div>
                 </div>
 
-                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-6 h-6" />
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-2xl font-extrabold text-amber-950 font-mono block">
-                      {invalidRows.length}
+                    <span className="text-xl font-extrabold text-amber-950 font-mono block">
+                      {totalDuplicatesCount}
                     </span>
                     <span className="text-xs text-amber-700 font-semibold">
-                      Rows with Errors (Will be skipped)
+                      Duplicates Detected
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-red-50/70 border border-red-200 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xl font-extrabold text-red-950 font-mono block">
+                      {invalidRows.length}
+                    </span>
+                    <span className="text-xs text-red-700 font-semibold">
+                      Rows with Errors
                     </span>
                   </div>
                 </div>
               </div>
 
+              {/* Duplicate Handling Section */}
+              {totalDuplicatesCount > 0 && (
+                <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-xs font-bold text-amber-900">
+                        Duplicate Phone Numbers Detected ({totalDuplicatesCount})
+                      </span>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-amber-950">
+                      <input
+                        type="checkbox"
+                        checked={skipDuplicates}
+                        onChange={(e) => setSkipDuplicates(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <span>Skip duplicates during import (Recommended)</span>
+                    </label>
+                  </div>
+
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    {skipDuplicates
+                      ? `Duplicate rows (${totalDuplicatesCount}) will be skipped to protect your existing customer records.`
+                      : 'You chose not to skip duplicates. All valid rows will be imported.'}
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-amber-900 pt-1 border-t border-amber-200/60">
+                    {duplicateCSVRows.length > 0 && (
+                      <div>
+                        • <strong>{duplicateCSVRows.length}</strong> duplicate within this CSV
+                      </div>
+                    )}
+                    {existingCustomerRows.length > 0 && (
+                      <div>
+                        • <strong>{existingCustomerRows.length}</strong> already in shop (active/archived)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Invalid Rows Warning Box */}
               {invalidRows.length > 0 && (
-                <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2 text-xs">
-                  <div className="font-bold text-amber-900 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>{invalidRows.length} rows have missing or invalid data:</span>
+                <div className="p-4 bg-red-50/60 border border-red-200 rounded-xl space-y-2 text-xs">
+                  <div className="font-bold text-red-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <span>{invalidRows.length} rows have missing or invalid data (Skipped):</span>
                   </div>
-                  <ul className="list-disc list-inside space-y-1 text-amber-800 text-[11px] max-h-36 overflow-y-auto">
+                  <ul className="list-disc list-inside space-y-1 text-red-800 text-[11px] max-h-36 overflow-y-auto">
                     {invalidRows.slice(0, 10).map((row, i) => (
                       <li key={i}>
-                        Row {row.rowIndex + 1}: {row.errors.join(', ')} ({row.raw[mapping.nameCol] || 'Unnamed'})
+                        Row {row.rowIndex}: {row.errors.join(', ')} ({row.raw[mapping.nameCol] || 'Unnamed'})
                       </li>
                     ))}
                     {invalidRows.length > 10 && (
@@ -647,41 +828,55 @@ export default function ImportPage() {
                 </div>
               )}
 
-              {/* Preview Table of Valid Rows */}
+              {/* Preview Table of Rows */}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                   <span className="font-bold text-xs text-gray-800">
-                    Preview of Valid Customers ({Math.min(5, validRows.length)} of {validRows.length})
+                    Preview of Customer Records ({Math.min(6, validRows.length)} of {validRows.length})
                   </span>
-                  <Badge variant="neutral">Verified</Badge>
+                  <Badge variant="neutral">Normalized</Badge>
                 </div>
 
                 <div className="divide-y divide-gray-100 text-xs">
-                  {validRows.slice(0, 5).map((row, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center hover:bg-gray-50/50"
-                    >
-                      <div>
-                        <div className="font-bold text-gray-900">{row.normalized?.name}</div>
-                        <div className="text-[11px] text-gray-500 font-mono">{row.normalized?.phone}</div>
+                  {validRows.slice(0, 6).map((row, idx) => {
+                    const isDup = row.isDuplicateInCSV || row.isExistingCustomer;
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center hover:bg-gray-50/50 ${
+                          isDup && skipDuplicates ? 'opacity-60 bg-amber-50/20' : ''
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                            <span>{row.normalized?.name}</span>
+                            {isDup && (
+                              <Badge variant="warning">
+                                {row.isExistingCustomer ? 'Already in Shop' : 'Duplicate'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-500 font-mono">
+                            {row.normalized?.phone}
+                          </div>
+                        </div>
+                        <div className="text-gray-700">
+                          {row.normalized?.assetName}
+                        </div>
+                        <div className="text-gray-500 truncate">
+                          {row.normalized?.address || row.normalized?.locality || '—'}
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <span className="font-bold text-blue-700 font-mono block">
+                            Due: {row.normalized?.nextDueDate}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            ₹{row.normalized?.serviceAmount || 1200}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-gray-700">
-                        {row.normalized?.assetName || 'Standard Service'}
-                      </div>
-                      <div className="text-gray-500 truncate">
-                        {row.normalized?.address || row.normalized?.locality || '—'}
-                      </div>
-                      <div className="text-left sm:text-right">
-                        <span className="font-bold text-blue-700 font-mono block">
-                          Due: {row.normalized?.nextDueDate}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          ₹{row.normalized?.serviceAmount || 1200}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -697,10 +892,10 @@ export default function ImportPage() {
                 <Button
                   variant="success"
                   onClick={handleConfirmImport}
-                  disabled={validRows.length === 0}
+                  disabled={rowsToImport.length === 0}
                   rightIcon={<CheckCircle2 className="w-4 h-4" />}
                 >
-                  Import {validRows.length} Customers Now
+                  Import {rowsToImport.length} Customers Now
                 </Button>
               </div>
             </CardContent>
@@ -772,6 +967,40 @@ export default function ImportPage() {
                       All new service schedules and next due dates have been registered into your workspace.
                     </p>
                   </div>
+
+                  {/* Sample Data Protection Banner & One-Tap Clean */}
+                  {isSampleImport && (
+                    <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 text-left space-y-3">
+                      <div className="flex items-start gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Sample Demonstration Data Loaded</p>
+                          <p className="text-indigo-800 mt-0.5">
+                            These 5 Kochi AC records were imported for testing. You can explore them in your Today queue, or remove them with one tap below.
+                          </p>
+                        </div>
+                      </div>
+
+                      {sampleRemoved ? (
+                        <div className="p-2.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
+                          <Check className="w-4 h-4 text-emerald-600" />
+                          <span>All sample customer records have been completely removed from your shop.</span>
+                        </div>
+                      ) : (
+                        <div className="pt-1 flex items-center justify-between">
+                          <span className="text-[11px] text-indigo-700">Done exploring sample data?</span>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={handleRemoveSampleData}
+                            leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                          >
+                            Remove Sample Data
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {importWarning && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900 space-y-2">
