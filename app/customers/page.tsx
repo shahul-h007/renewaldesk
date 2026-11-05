@@ -108,6 +108,17 @@ export default function CustomersPage() {
     <AppShell
       title="Customer Directory"
       subtitle={`Manage all ${customers.length} registered customers, assets, and service history.`}
+      headerActions={
+        <Link
+          href="/import"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 shadow-2xs transition-colors min-h-[38px]"
+          title="Import customers from CSV file"
+        >
+          <Upload className="w-3.5 h-3.5 text-gray-600" />
+          <span className="hidden sm:inline">Import CSV</span>
+          <span className="sm:hidden">Import</span>
+        </Link>
+      }
     >
       <div className="space-y-6">
         {/* Search & Actions Bar */}

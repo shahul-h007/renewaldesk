@@ -9,14 +9,34 @@ import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { TrialBanner } from '@/components/TrialBanner';
-import { AlertCircle, Clock, Calendar, CheckCircle2, DollarSign, Upload, Search, Filter, Sparkles, RefreshCw, Users, Plus } from 'lucide-react';
+import { Tabs, TabItem } from '@/components/ui/Tabs';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import {
+  AlertCircle,
+  Clock,
+  Calendar,
+  CheckCircle2,
+  Upload,
+  Search,
+  Sparkles,
+  RefreshCw,
+  Users,
+  Plus,
+  MessageSquare,
+  ArrowRight,
+} from 'lucide-react';
 import { formatINR } from '@/lib/format';
+
+type TabKey = 'OVERDUE' | 'TODAY' | 'WEEK' | 'COMPLETED';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { services, customers, assets, business, isDatabaseMode, isLoadingDb, isLoaded, dbError, reloadFromDb } = useRenewalDesk();
   const { user, business: authBiz, isConfigured, isLoading: isAuthLoading, authError } = useAuth();
-  const [activeTab, setActiveTab] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'WEEK' | 'COMPLETED'>('OVERDUE');
+  const [activeTab, setActiveTab] = useState<TabKey>('OVERDUE');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [billingUsage, setBillingUsage] = useState<any>(null);
@@ -56,15 +76,16 @@ export default function DashboardPage() {
     (sum, s) => sum + (s.serviceAmount || 0), 0
   );
 
-  // Filtered queue
+  // Filtered queue by active tab
   let filtered = services.filter(s => {
     if (activeTab === 'OVERDUE') return s.urgency === 'OVERDUE' && s.followUpStatus !== 'COMPLETED';
     if (activeTab === 'TODAY') return s.urgency === 'DUE_TODAY' && s.followUpStatus !== 'COMPLETED';
     if (activeTab === 'WEEK') return s.urgency === 'DUE_THIS_WEEK' && s.followUpStatus !== 'COMPLETED';
     if (activeTab === 'COMPLETED') return s.followUpStatus === 'COMPLETED';
-    return s.followUpStatus !== 'COMPLETED'; // ALL pending
+    return s.followUpStatus !== 'COMPLETED';
   });
 
+  // Search filter
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(s => {
@@ -89,13 +110,21 @@ export default function DashboardPage() {
     return a.nextDueDate.localeCompare(b.nextDueDate);
   });
 
+  // Canonical 4 Segmented Tabs
+  const tabs: TabItem[] = [
+    { id: 'OVERDUE', label: 'Overdue', count: overdueServices.length, icon: AlertCircle },
+    { id: 'TODAY', label: 'Today', count: todayServices.length, icon: Clock },
+    { id: 'WEEK', label: 'This week', count: weekServices.length, icon: Calendar },
+    { id: 'COMPLETED', label: 'Completed', count: completedServices.length, icon: CheckCircle2 },
+  ];
+
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   if (isCloudLoading) {
     return (
       <AppShell
-        title="Daily Follow-up Queue"
-        subtitle="Find customers due for service, send WhatsApp, and secure bookings."
+        title="Today's Follow-up Queue"
+        subtitle="Track upcoming service cycles and send 1-click WhatsApp reminders."
       >
         <DashboardSkeleton />
       </AppShell>
@@ -104,10 +133,24 @@ export default function DashboardPage() {
 
   return (
     <AppShell
-      title="Daily Follow-up Queue"
-      subtitle={`Find customers due for service, send WhatsApp, and secure bookings.`}
+      title="Today's Follow-up Queue"
+      subtitle="Find customers due for service, send WhatsApp reminders, and book renewals."
+      headerActions={
+        <div className="flex items-center gap-2">
+          {/* Quick "Edit message templates" shortcut */}
+          <Link
+            href="/templates"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 shadow-2xs transition-colors min-h-[38px]"
+            title="Configure WhatsApp templates and AI message generator"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Edit Templates</span>
+            <span className="sm:hidden">Templates</span>
+          </Link>
+        </div>
+      }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Cloud Error Alert Banner */}
         {(dbError || authError) && (
           <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
@@ -116,15 +159,13 @@ export default function DashboardPage() {
               <div>
                 <p className="font-bold text-red-900 text-sm">Cloud Database Connection Issue</p>
                 <p className="text-red-700 mt-0.5">{dbError || authError}</p>
-                <p className="text-red-600 text-[11px] mt-1">
-                  Ensure the non-recursive RLS migration is applied to your Supabase project.
-                </p>
               </div>
             </div>
             {reloadFromDb && (
               <button
+                type="button"
                 onClick={() => reloadFromDb()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors shrink-0 shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors shrink-0 shadow-xs min-h-[36px]"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Retry Connection</span>
@@ -145,192 +186,161 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* KPI Cards Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-          {/* Card 1: Overdue */}
+        {/* Top KPI Cards (Tappable to jump to tabs) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {/* Overdue */}
           <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab('OVERDUE')}
-            className={`p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-xs ${
-              activeTab === 'OVERDUE' ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 hover:border-red-200'
+            onKeyDown={(e) => e.key === 'Enter' && setActiveTab('OVERDUE')}
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+              activeTab === 'OVERDUE'
+                ? 'border-red-500 ring-2 ring-red-500/20'
+                : 'border-gray-200/80 hover:border-red-300'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Overdue</span>
-              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Overdue</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
                 <AlertCircle className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-gray-900">{overdueServices.length}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              <span className="text-2xl sm:text-3xl font-black text-gray-900">{overdueServices.length}</span>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
                 Action Required
               </span>
             </div>
-            <p className="text-[11px] text-gray-500 mt-2">
-              Customers passed their recommended service date
+            <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-1.5 line-clamp-1">
+              Passed scheduled service date
             </p>
           </div>
 
-          {/* Card 2: Due Today */}
+          {/* Due Today */}
           <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab('TODAY')}
-            className={`p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-xs ${
-              activeTab === 'TODAY' ? 'border-orange-400 ring-2 ring-orange-100' : 'border-gray-200 hover:border-orange-200'
+            onKeyDown={(e) => e.key === 'Enter' && setActiveTab('TODAY')}
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+              activeTab === 'TODAY'
+                ? 'border-orange-500 ring-2 ring-orange-500/20'
+                : 'border-gray-200/80 hover:border-orange-300'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Today</span>
-              <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Due Today</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-gray-900">{todayServices.length}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+              <span className="text-2xl sm:text-3xl font-black text-gray-900">{todayServices.length}</span>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
                 Call Target
               </span>
             </div>
-            <p className="text-[11px] text-gray-500 mt-2">
-              Scheduled for service renewal today
+            <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-1.5 line-clamp-1">
+              Due for service renewal today
             </p>
           </div>
 
-          {/* Card 3: Due This Week */}
+          {/* This Week */}
           <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab('WEEK')}
-            className={`p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-xs ${
-              activeTab === 'WEEK' ? 'border-amber-400 ring-2 ring-amber-100' : 'border-gray-200 hover:border-amber-200'
+            onKeyDown={(e) => e.key === 'Enter' && setActiveTab('WEEK')}
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+              activeTab === 'WEEK'
+                ? 'border-amber-500 ring-2 ring-amber-500/20'
+                : 'border-gray-200/80 hover:border-amber-300'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Due This Week</span>
-              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">This Week</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
                 <Calendar className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-gray-900">{weekServices.length}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              <span className="text-2xl sm:text-3xl font-black text-gray-900">{weekServices.length}</span>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                 Upcoming
               </span>
             </div>
-            <p className="text-[11px] text-gray-500 mt-2">
-              Due within the next 7 days
+            <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-1.5 line-clamp-1">
+              Due within next 7 days
             </p>
           </div>
 
-          {/* Card 4: Recovered Revenue */}
+          {/* Recovered Revenue */}
           <div
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveTab('COMPLETED')}
-            className={`p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-xs ${
-              activeTab === 'COMPLETED' ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-gray-200 hover:border-emerald-200'
+            onKeyDown={(e) => e.key === 'Enter' && setActiveTab('COMPLETED')}
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+              activeTab === 'COMPLETED'
+                ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                : 'border-gray-200/80 hover:border-emerald-300'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recovered Revenue</span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Completed</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span suppressHydrationWarning className="text-2xl sm:text-3xl font-extrabold text-emerald-700">
+              <span suppressHydrationWarning className="text-xl sm:text-2xl font-black text-emerald-700 truncate">
                 {business.currency}{formatINR(recoveredRevenue)}
               </span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 shrink-0">
                 {completedServices.length} saved
               </span>
             </div>
-            <p className="text-[11px] text-gray-500 mt-2">
-              Revenue retained from completed return visits
+            <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-1.5 line-clamp-1">
+              Retained from return visits
             </p>
           </div>
         </div>
 
-        {/* The Action Queue Container */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-          {/* Header Bar with Tabs & Search */}
-          <div className="p-4 sm:p-5 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            {/* Urgency Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              <button
-                onClick={() => setActiveTab('OVERDUE')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === 'OVERDUE'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                🔴 Overdue ({overdueServices.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('TODAY')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === 'TODAY'
-                    ? 'bg-orange-500 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                🟠 Due Today ({todayServices.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('WEEK')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === 'WEEK'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                🟡 This Week ({weekServices.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === 'ALL'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                All Attention ({overdueServices.length + todayServices.length + weekServices.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('COMPLETED')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === 'COMPLETED'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                ✓ Completed ({completedServices.length})
-              </button>
-            </div>
+        {/* Main Action Queue Container */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
+          {/* Controls Bar: Segmented Tabs + Search + Template Shortcut */}
+          <div className="p-3.5 sm:p-4 border-b border-gray-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Segmented Control Tabs */}
+            <Tabs
+              tabs={tabs}
+              activeTab={activeTab}
+              onChange={(id) => setActiveTab(id as TabKey)}
+              variant="pill"
+            />
 
             {/* Search Input */}
-            <div className="relative min-w-[240px]">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
+            <div className="w-full md:w-72">
+              <Input
+                placeholder="Search customer, phone, area..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search name, phone, area..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                leftIcon={Search}
+                className="py-2"
               />
             </div>
           </div>
 
-          {/* Table Header Row (Hidden on mobile) */}
-          <div className="hidden sm:flex items-center justify-between px-6 py-3 bg-gray-50/75 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+          {/* Desktop Table Header (Hidden on Mobile) */}
+          <div className="hidden md:flex items-center justify-between px-5 py-3 bg-gray-50/70 border-b border-gray-200 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
             <div className="w-1/4">Customer</div>
             <div className="w-1/5">Appliance / Service</div>
-            <div className="w-1/5">Due Status</div>
-            <div className="w-24 text-right">Fee</div>
-            <div className="w-44 text-right">Immediate Actions</div>
+            <div className="w-1/6">Due Status</div>
+            <div className="w-20 text-right pr-4">Fee</div>
+            <div className="shrink-0">Immediate Actions</div>
           </div>
 
-          {/* Rows List */}
+          {/* List Content */}
           <div className="divide-y divide-gray-100">
             {filtered.length > 0 ? (
               filtered.map((service) => {
@@ -346,82 +356,77 @@ export default function DashboardPage() {
                 );
               })
             ) : customers.length === 0 ? (
-              <div className="py-16 text-center px-4 space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
-                  <Users className="w-7 h-7" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-gray-900">
-                    No customers in your workspace yet
-                  </h3>
-                  <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-                    Start by adding your first customer or importing an existing customer list via CSV to track upcoming renewal cycles and send WhatsApp follow-ups.
-                  </p>
-                </div>
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add First Customer</span>
-                  </button>
-                  <Link
-                    href="/import"
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Import Customer CSV</span>
-                  </Link>
-                </div>
+              /* First-Run Empty State */
+              <div className="p-6 sm:p-12">
+                <EmptyState
+                  icon={Users}
+                  title="Start Your First Service Recovery Cycle"
+                  description="Add your first customer or import your customer list via CSV to automatically track recurring maintenance dates and send WhatsApp reminders."
+                  primaryAction={{
+                    label: 'Add your first customer',
+                    onClick: () => setShowAddModal(true),
+                    icon: Plus,
+                  }}
+                  secondaryAction={{
+                    label: 'Import from CSV',
+                    onClick: () => router.push('/import'),
+                    icon: Upload,
+                  }}
+                  tip="Small AC & RO shops typically recover 30-40% of overdue customers in their first week with 1-click reminders."
+                />
               </div>
             ) : (
-              <div className="py-16 text-center px-4 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-sm font-bold text-gray-900">
-                  {searchQuery ? 'No customers found matching your search' : "You're all caught up! 🎉"}
-                </h3>
-                <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                  {searchQuery
-                    ? 'Try searching with a different name or phone number.'
-                    : 'No pending follow-ups in this tab right now. All due customers have been contacted or scheduled.'}
-                </p>
-                {!searchQuery && (
-                  <div className="pt-2 flex items-center justify-center gap-3">
-                    <Link
-                      href="/import"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      Import more customers
-                    </Link>
-                  </div>
-                )}
+              /* Tab Caught-Up Empty State */
+              <div className="p-6 sm:p-12">
+                <EmptyState
+                  icon={CheckCircle2}
+                  title={searchQuery ? 'No matching customers found' : "You're all caught up! 🎉"}
+                  description={
+                    searchQuery
+                      ? 'Try searching with a different name, phone number, or locality.'
+                      : `No pending customers in the ${tabs.find(t => t.id === activeTab)?.label || 'active'} tab. All due services have been contacted or scheduled.`
+                  }
+                  secondaryAction={
+                    searchQuery
+                      ? {
+                          label: 'Clear search',
+                          onClick: () => setSearchQuery(''),
+                        }
+                      : activeTab !== 'OVERDUE' && overdueServices.length > 0
+                      ? {
+                          label: `View Overdue (${overdueServices.length})`,
+                          onClick: () => setActiveTab('OVERDUE'),
+                          icon: AlertCircle,
+                        }
+                      : undefined
+                  }
+                />
               </div>
             )}
           </div>
         </div>
 
         {/* Opportunity Banner */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-4 h-4 text-yellow-300" />
-              <h3 className="text-sm font-bold">Unclaimed Revenue Opportunity</h3>
+        {potentialRecoverableRevenue > 0 && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-4 h-4 text-yellow-300" />
+                <h3 className="text-sm font-bold">Unclaimed Revenue Opportunity</h3>
+              </div>
+              <p className="text-xs text-blue-200">
+                There is <span suppressHydrationWarning className="font-bold text-white">{business.currency}{formatINR(potentialRecoverableRevenue)}</span> in repeat service waiting to be unlocked in your pending follow-up queue.
+              </p>
             </div>
-            <p className="text-xs text-blue-200">
-              There is <span suppressHydrationWarning className="font-bold text-white">{business.currency}{formatINR(potentialRecoverableRevenue)}</span> in repeat service waiting to be unlocked in your pending follow-up queue.
-            </p>
+            <Link
+              href="/results"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-900 hover:bg-blue-50 transition-colors shadow-xs shrink-0"
+            >
+              <span>View Revenue Funnel</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <Link
-            href="/results"
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-white text-blue-900 hover:bg-blue-50 transition-colors shadow-xs shrink-0"
-          >
-            View Recovery Funnel
-          </Link>
-        </div>
+        )}
       </div>
 
       <AddCustomerModal
@@ -435,10 +440,9 @@ export default function DashboardPage() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      {/* KPI Cards Grid Skeleton */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3">
+          <div key={i} className="p-5 rounded-2xl bg-white border border-gray-200 shadow-2xs space-y-3">
             <div className="flex items-center justify-between">
               <div className="h-3 w-16 bg-gray-200 rounded" />
               <div className="w-8 h-8 rounded-lg bg-gray-100" />
@@ -449,27 +453,11 @@ function DashboardSkeleton() {
         ))}
       </div>
 
-      {/* Action Queue Skeleton */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-8 w-24 bg-gray-100 rounded-lg" />
-            ))}
-          </div>
-          <div className="h-8 w-60 bg-gray-100 rounded-lg" />
-        </div>
-        <div className="divide-y divide-gray-100">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden p-6 space-y-4">
+        <div className="h-10 w-full bg-gray-100 rounded-xl" />
+        <div className="space-y-3 pt-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="p-5 flex items-center justify-between gap-4">
-              <div className="space-y-2 flex-1">
-                <div className="h-4 w-40 bg-gray-200 rounded" />
-                <div className="h-3 w-28 bg-gray-100 rounded" />
-              </div>
-              <div className="h-4 w-32 bg-gray-100 rounded hidden sm:block" />
-              <div className="h-6 w-20 bg-gray-100 rounded-full" />
-              <div className="h-8 w-24 bg-gray-200 rounded-lg" />
-            </div>
+            <div key={i} className="h-16 bg-gray-50 rounded-xl border border-gray-100" />
           ))}
         </div>
       </div>

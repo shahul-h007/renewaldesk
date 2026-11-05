@@ -1,16 +1,57 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
-import { Building2, Save, Check, RotateCcw, ShieldCheck, Cloud, Database, AlertCircle } from 'lucide-react';
+import { Tabs, TabItem } from '@/components/ui/Tabs';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Badge } from '@/components/ui/Badge';
+import {
+  Building2,
+  Save,
+  Check,
+  RotateCcw,
+  ShieldCheck,
+  Cloud,
+  Database,
+  AlertCircle,
+  Wrench,
+  MessageSquare,
+  CreditCard,
+  HelpCircle,
+  Upload,
+  ArrowRight,
+  ExternalLink,
+  ChevronRight,
+  Sparkles,
+  Phone,
+  RefreshCw,
+} from 'lucide-react';
 import { BUSINESS_TYPE_OPTIONS, getCanonicalCategoryLabel } from '@/lib/catalog-presets';
 
+type SettingsTab = 'PROFILE' | 'SERVICES' | 'TEMPLATES' | 'BILLING' | 'HELP';
+
 export default function SettingsPage() {
-  const { business, updateBusiness, resetDemoData, isDatabaseMode, isLoadingDb, isLoaded } = useRenewalDesk();
+  const {
+    business,
+    updateBusiness,
+    resetDemoData,
+    isDatabaseMode,
+    isLoadingDb,
+    isLoaded,
+    catalog,
+    customers,
+  } = useRenewalDesk();
   const { user, isConfigured, isLoading: isAuthLoading } = useAuth();
 
+  const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
+
+  // Form State
   const [name, setName] = useState(business.name);
   const [phone, setPhone] = useState(business.phone);
   const [city, setCity] = useState(business.city);
@@ -30,24 +71,18 @@ export default function SettingsPage() {
     }
   }, [business]);
 
+  const isDev = process.env.NODE_ENV === 'development';
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   if (isCloudLoading) {
     return (
       <AppShell
-        title="Settings & Business Profile"
-        subtitle="Configure your service company details, contact number, and default reminder settings."
+        title="Settings & Workspace Hub"
+        subtitle="Manage shop profile, service catalog, templates, and subscription."
       >
-        <div className="max-w-3xl space-y-6 animate-pulse">
-          <div className="h-96 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-4">
-            <div className="h-6 w-40 bg-gray-200 rounded" />
-            <div className="h-4 w-72 bg-gray-100 rounded" />
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="h-10 bg-gray-100 rounded-lg" />
-              <div className="h-10 bg-gray-100 rounded-lg" />
-            </div>
-          </div>
-          <div className="h-60 bg-white rounded-2xl border border-gray-200 p-6" />
+        <div className="max-w-4xl space-y-6 animate-pulse">
+          <div className="h-12 w-96 bg-gray-200 rounded-xl" />
+          <div className="h-96 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-4" />
         </div>
       </AppShell>
     );
@@ -78,219 +113,362 @@ export default function SettingsPage() {
     }
   };
 
+  const tabs: TabItem[] = [
+    { id: 'PROFILE', label: 'Shop Profile', icon: Building2 },
+    { id: 'SERVICES', label: 'Services', count: catalog.length, icon: Wrench },
+    { id: 'TEMPLATES', label: 'Templates', icon: MessageSquare },
+    { id: 'BILLING', label: 'Billing', icon: CreditCard },
+    { id: 'HELP', label: 'Help & Tour', icon: HelpCircle },
+  ];
+
   return (
     <AppShell
-      title="Settings & Business Profile"
-      subtitle="Configure your service company details, contact number, and default reminder settings."
+      title="Settings & Workspace Hub"
+      subtitle="Manage your shop profile, service catalog, WhatsApp templates, and billing."
     >
-      <div className="max-w-3xl space-y-6">
-        <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-6 shadow-xs">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">Business Profile</h2>
-            <p className="text-xs text-gray-500">
-              These details are automatically populated in your outgoing WhatsApp templates.
-            </p>
-          </div>
+      <div className="max-w-4xl space-y-6">
+        {/* Settings Navigation Tabs */}
+        <div className="bg-white p-2 rounded-2xl border border-gray-200/80 shadow-2xs">
+          <Tabs
+            tabs={tabs}
+            activeTab={activeTab}
+            onChange={(id) => setActiveTab(id as SettingsTab)}
+            variant="pill"
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* ============================================================== */}
+        {/* TAB 1: SHOP PROFILE */}
+        {/* ============================================================== */}
+        {activeTab === 'PROFILE' && (
+          <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-8 space-y-6 shadow-2xs">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                Business Name
-              </label>
-              <input
-                type="text"
+              <h2 className="text-base font-bold text-gray-900">Business Profile</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                These business details are automatically included in outgoing WhatsApp renewal messages and client invoices.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <Input
+                label="Business Name"
+                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                required
+                placeholder="e.g. Royal Enfield Service Hub"
               />
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                WhatsApp Phone Number
-              </label>
-              <input
-                type="text"
+              <Input
+                label="WhatsApp Phone Number"
+                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                required
+                placeholder="e.g. 9846011222"
+                helperText="Indian 10-digit number for customer replies."
               />
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                City / Locality
-              </label>
-              <input
-                type="text"
+              <Input
+                label="City / Locality"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="e.g. Kochi, Ernakulam"
               />
+
+              <div>
+                <Select
+                  label="Industry Vertical"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  disabled={isSaving}
+                  helperText="Defines your default service catalog presets and WhatsApp message tones."
+                >
+                  {BUSINESS_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <Input
+                  label="Default Interval (Months)"
+                  type="number"
+                  min="1"
+                  max="36"
+                  value={interval}
+                  onChange={(e) => setInterval(Number(e.target.value))}
+                  helperText="Standard recurring follow-up cycle for new appliances."
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                Industry Vertical
-              </label>
-              <select
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                disabled={isSaving}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500"
+            <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                {saved && (
+                  <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    Business profile updated successfully!
+                  </span>
+                )}
+                {saveError && (
+                  <span className="text-xs text-red-600 font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    {saveError}
+                  </span>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                isLoading={isSaving}
+                leftIcon={Save}
+                className="w-full sm:w-auto"
               >
-                {BUSINESS_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Changing your industry vertical preserves all existing customer records, service cycles, and custom templates.
-              </p>
+                {saved ? 'Saved' : 'Save Changes'}
+              </Button>
             </div>
-          </div>
+          </form>
+        )}
 
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <div>
-              {saved && (
-                <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" /> Business settings saved successfully!
-                </span>
-              )}
-              {saveError && (
-                <span className="text-xs text-rose-600 font-semibold flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> {saveError}
-                </span>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-2 transition-colors ${
-                isSaving ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {isSaving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : saved ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Saved
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </>
-              )}
-            </button>
+        {/* ============================================================== */}
+        {/* TAB 2: SERVICES & CATALOG */}
+        {/* ============================================================== */}
+        {activeTab === 'SERVICES' && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Service Catalog & Pricing</CardTitle>
+                    <CardDescription>
+                      Configure recurrence schedules, intervals, and typical service charges for your industry.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="primary">{catalog.length} Services</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-gray-100">
+                  {catalog.slice(0, 4).map((item) => (
+                    <div key={item.id} className="py-3 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-gray-900">{item.name}</p>
+                        <p className="text-gray-500">Every {item.intervalValue} {item.intervalUnit.toLowerCase()}</p>
+                      </div>
+                      <span className="font-extrabold text-gray-800">
+                        {business.currency}{item.typicalPrice}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
+                <p className="text-xs text-gray-500">
+                  Add custom services, edit prices, or adjust reminder intervals.
+                </p>
+                <Link href="/services" className="w-full sm:w-auto">
+                  <Button variant="primary" size="md" rightIcon={ArrowRight} className="w-full sm:w-auto">
+                    Manage Full Service Catalog
+                  </Button>
+                </Link>
+              </CardFooter>
+            </Card>
           </div>
-        </form>
+        )}
 
-        {/* Cloud Persistence & Backend Diagnostics */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <Database className="w-4 h-4 text-blue-600" />
-                Backend & Persistence Status
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Runtime configuration and active storage engine for this RenewalDesk workspace.
-              </p>
-            </div>
-            {isDatabaseMode ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                PostgreSQL Cloud Active
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                Demo Mode (LocalStorage)
-              </span>
+        {/* ============================================================== */}
+        {/* TAB 3: TEMPLATES */}
+        {/* ============================================================== */}
+        {activeTab === 'TEMPLATES' && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>WhatsApp Message Templates</CardTitle>
+                    <CardDescription>
+                      Customize the 5 customer lifecycle messages and generate tailored templates with AI.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="whatsapp">wa.me Ready</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs text-gray-600">
+                <p>
+                  RenewalDesk includes 5 ready-to-use message triggers:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="font-bold text-gray-900">1. Due Today Reminder</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Polite reminder for scheduled service renewal.</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="font-bold text-gray-900">2. 7-Day Overdue</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Gentle nudge to prevent appliance breakdown.</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="font-bold text-gray-900">3. 30-Day Critical Overdue</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Urgent recall highlighting safety and efficiency.</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="font-bold text-gray-900">4. Booking Confirmed</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Confirmation text with scheduled visit time.</p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
+                <p className="text-xs text-gray-500">
+                  Supports Malayalam, English, and client placeholders like {'{customer_name}'}.
+                </p>
+                <Link href="/templates" className="w-full sm:w-auto">
+                  <Button variant="primary" size="md" rightIcon={ArrowRight} className="w-full sm:w-auto">
+                    Open Template Editor & AI Prompts
+                  </Button>
+                </Link>
+              </CardFooter>
+            </Card>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 4: BILLING & PLANS */}
+        {/* ============================================================== */}
+        {activeTab === 'BILLING' && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Subscription & Workspace Capacity</CardTitle>
+                    <CardDescription>
+                      Manage your plan, check active customer limits, or activate founding lifetime access.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="purple">Razorpay Secure</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100">
+                    <span className="text-gray-400 font-medium block mb-1">Active Customers</span>
+                    <span className="text-lg font-bold text-gray-900">{customers.length}</span>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100">
+                    <span className="text-gray-400 font-medium block mb-1">Free Trial</span>
+                    <span className="text-lg font-bold text-emerald-700">14 Days Free</span>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100">
+                    <span className="text-gray-400 font-medium block mb-1">Payments Engine</span>
+                    <span className="text-lg font-bold text-gray-900">UPI / Cards / Netbanking</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
+                <p className="text-xs text-gray-500">
+                  Upgrade anytime or review past billing receipts.
+                </p>
+                <Link href="/billing" className="w-full sm:w-auto">
+                  <Button variant="primary" size="md" rightIcon={ArrowRight} className="w-full sm:w-auto">
+                    View Plans & Upgrade
+                  </Button>
+                </Link>
+              </CardFooter>
+            </Card>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 5: HELP & TOUR */}
+        {/* ============================================================== */}
+        {activeTab === 'HELP' && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>How RenewalDesk Works</CardTitle>
+                <CardDescription>
+                  The continuous 4-step loop designed for Indian recurring service providers.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-100">
+                    <span className="font-bold text-blue-900 block mb-1">1. Remember</span>
+                    <p className="text-blue-700">Calculates next due dates automatically based on interval.</p>
+                  </div>
+                  <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                    <span className="font-bold text-emerald-900 block mb-1">2. Remind</span>
+                    <p className="text-emerald-700">Send 1-click WhatsApp messages via wa.me click-to-chat.</p>
+                  </div>
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block mb-1">3. Book</span>
+                    <p className="text-indigo-700">Track customer responses and mark appointments as booked.</p>
+                  </div>
+                  <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-100">
+                    <span className="font-bold text-purple-900 block mb-1">4. Repeat</span>
+                    <p className="text-purple-700">Marking complete logs revenue and auto-schedules the next visit.</p>
+                  </div>
+                </div>
+
+                {/* Import CSV Quick Link */}
+                <div className="pt-2 flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <p className="font-bold text-xs text-gray-900">Need to import an existing customer ledger?</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Upload any Excel/CSV sheet with names and phone numbers.</p>
+                  </div>
+                  <Link href="/import">
+                    <Button variant="outline" size="sm" leftIcon={Upload}>
+                      Import CSV
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Developer Diagnostics (Dev Only) */}
+            {isDev && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Developer Diagnostics</CardTitle>
+                      <CardDescription>
+                        Visible only in development mode.
+                      </CardDescription>
+                    </div>
+                    <Badge variant={isDatabaseMode ? 'success' : 'warning'}>
+                      {isDatabaseMode ? 'Cloud PostgreSQL' : 'Local Storage Demo'}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  <div className="p-3 bg-gray-50 rounded-xl">
+                    <p className="font-semibold text-gray-700">User: {user ? user.email : 'None'}</p>
+                    <p className="font-semibold text-gray-700">Business: {business.name}</p>
+                    <p className="font-semibold text-gray-700">Industry: {business.industry}</p>
+                  </div>
+                  {!isDatabaseMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('Reset to initial Kochi AC demo dataset?')) {
+                          resetDemoData();
+                          alert('Reset complete!');
+                        }
+                      }}
+                      leftIcon={RotateCcw}
+                    >
+                      Reset Sample Dataset
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-gray-400 font-medium block mb-1">Storage Engine</span>
-              <span className="font-semibold text-gray-800">
-                {isDatabaseMode ? 'Supabase PostgreSQL (Multi-tenant RLS)' : 'Local Browser Storage (Offline Demo)'}
-              </span>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-gray-400 font-medium block mb-1">Supabase Config</span>
-              <span className="font-semibold text-gray-800">
-                {isConfigured ? '✓ Configured (.env.local active)' : 'Not Configured (Requires NEXT_PUBLIC_SUPABASE_ANON_KEY)'}
-              </span>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-gray-400 font-medium block mb-1">Active User</span>
-              <span className="font-semibold text-gray-800">
-                {user ? user.email : 'None (Operating in local demo mode)'}
-              </span>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-gray-400 font-medium block mb-1">Active Business Tenant</span>
-              <span className="font-semibold text-gray-800">
-                {business.name}
-              </span>
-            </div>
-          </div>
-
-          {!isConfigured && (
-            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
-              <div className="font-semibold flex items-center gap-1.5 text-blue-800">
-                <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
-                Connecting to PostgreSQL Cloud
-              </div>
-              <p className="text-blue-700 leading-relaxed">
-                To connect to your cloud database, set <code className="bg-blue-100 px-1 py-0.5 rounded font-mono text-[11px]">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="bg-blue-100 px-1 py-0.5 rounded font-mono text-[11px]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="bg-blue-100 px-1 py-0.5 rounded font-mono text-[11px]">.env.local</code>. Once configured, sign up or log in to launch your isolated cloud tenant.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Demo Data Management */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-900">Demonstration & Pilot Controls</h3>
-          <p className="text-xs text-gray-500">
-            {isDatabaseMode
-              ? 'Demo controls are disabled while connected to PostgreSQL Cloud. Your cloud customer data is protected.'
-              : 'Resetting clears local demo storage and re-populates the real-world Kochi AC service demonstration records (Arun, Faisal, Priya, etc.).'}
-          </p>
-          <button
-            onClick={() => {
-              if (isDatabaseMode) {
-                alert('Demo dataset reset is disabled in Cloud Mode to protect live database records.');
-                return;
-              }
-              if (confirm('Reset to initial Kochi AC demo dataset?')) {
-                resetDemoData();
-                alert('Reset complete! Showing fresh demo data.');
-              }
-            }}
-            disabled={isDatabaseMode}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              isDatabaseMode
-                ? 'text-gray-400 bg-gray-100 cursor-not-allowed border border-gray-200'
-                : 'text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200'
-            }`}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset to Sample Dataset
-          </button>
-        </div>
+        )}
       </div>
     </AppShell>
   );
