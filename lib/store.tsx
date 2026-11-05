@@ -1,9 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit } from './types';
+import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit, CompletedServiceRecord } from './types';
 import { calculateDueStatus, calculateNextDueDate } from './due-date-engine';
 import { DEFAULT_TEMPLATES } from './whatsapp';
+import { getPresetsForCategory, getInitialTemplatesForCategory } from './catalog-presets';
 import { useAuth } from './auth-context';
 import {
   fetchBusinessData,
@@ -18,6 +19,9 @@ import {
   deleteServiceTypeInDb,
   toggleServiceTypeStatusInDb,
   updateMessageTemplateInDb,
+  createMessageTemplateInDb,
+  deleteMessageTemplateInDb,
+  restoreDefaultMessageTemplatesInDb,
   updateBusinessInDb,
 } from './db/operations';
 
@@ -28,6 +32,7 @@ interface RenewalDeskContextType {
   catalog: ServiceCatalogItem[];
   templates: WhatsAppTemplate[];
   business: BusinessProfile;
+  serviceHistory: CompletedServiceRecord[];
   isLoaded: boolean;
   isLoadingDb: boolean;
   dbError: string | null;
@@ -48,7 +53,10 @@ interface RenewalDeskContextType {
   ) => { nextDueDate: string };
   importCustomersFromCSV: (validRows: any[]) => Promise<{ success: boolean; count: number; failedCount?: number; error?: string; warning?: string }>;
   updateTemplate: (tpl: WhatsAppTemplate) => void;
-  updateBusiness: (biz: BusinessProfile) => void;
+  addTemplate: (tpl: Omit<WhatsAppTemplate, 'id'>) => Promise<WhatsAppTemplate>;
+  deleteTemplate: (id: string) => Promise<void>;
+  restoreDefaultTemplates: () => Promise<void>;
+  updateBusiness: (biz: BusinessProfile) => Promise<void>;
   addServiceType: (data: Omit<ServiceCatalogItem, 'id'>) => ServiceCatalogItem;
   updateServiceType: (item: ServiceCatalogItem, updateExistingUpcoming?: boolean) => void;
   deleteServiceType: (id: string) => { success: boolean; reason?: string };
@@ -76,58 +84,17 @@ const INITIAL_BUSINESS: BusinessProfile = {
   defaultIntervalMonths: 6,
 };
 
-const INITIAL_CATALOG: ServiceCatalogItem[] = [
-  {
-    id: 'cat-1',
-    name: 'AC Periodic General Service',
-    description: 'Standard filter wash, coil inspection & drainage flush',
-    intervalValue: 6,
-    intervalUnit: 'MONTHS',
-    defaultIntervalMonths: 6,
-    typicalPrice: 1200,
-    isActive: true,
-  },
-  {
-    id: 'cat-2',
-    name: 'Deep Jet Chemical Foam Wash',
-    description: 'High-pressure foam jet wash for heavy cooling restoration',
-    intervalValue: 12,
-    intervalUnit: 'MONTHS',
-    defaultIntervalMonths: 12,
-    typicalPrice: 1800,
-    isActive: true,
-  },
-  {
-    id: 'cat-3',
-    name: 'Refrigerant Gas Leak & Top-up',
-    description: 'Pressure test, leak sealing & Freon gas top-up',
-    intervalValue: 12,
-    intervalUnit: 'MONTHS',
-    defaultIntervalMonths: 12,
-    typicalPrice: 2200,
-    isActive: true,
-  },
-  {
-    id: 'cat-4',
-    name: 'Annual Maintenance Contract (AMC)',
-    description: 'Comprehensive quarterly routine visits & emergency breakdowns',
-    intervalValue: 3,
-    intervalUnit: 'MONTHS',
-    defaultIntervalMonths: 3,
-    typicalPrice: 3500,
-    isActive: true,
-  },
-];
+const INITIAL_CATALOG: ServiceCatalogItem[] = getPresetsForCategory(INITIAL_BUSINESS.industry);
 
 const INITIAL_CUSTOMERS: Customer[] = [
-  { id: 'c-1', name: 'Arun Kumar', phone: '9846012345', email: 'arun.k@gmail.com', address: 'Flat 4B, SkyLine Ivy', locality: 'Edappally, Kochi', createdAt: '2026-01-10' },
-  { id: 'c-2', name: 'Faisal Mohammed', phone: '9745098765', email: 'faisal.m@yahoo.com', address: 'Near Jawaharlal Stadium', locality: 'Kaloor, Kochi', createdAt: '2026-02-14' },
-  { id: 'c-3', name: 'Priya Nair', phone: '9946154321', email: 'priya.nair@outlook.com', address: 'Villa 12, InfoPark Enclave', locality: 'Kakkanad, Kochi', createdAt: '2026-03-01' },
-  { id: 'c-4', name: 'George Varghese', phone: '9847233445', address: 'KP Vallon Road', locality: 'Kadavanthra, Kochi', createdAt: '2026-03-12' },
-  { id: 'c-5', name: 'Nikhil Raj', phone: '9995088776', address: 'Railway Station Road', locality: 'Aluva, Kochi', createdAt: '2026-01-20' },
-  { id: 'c-6', name: 'Anjali Menon', phone: '9846811223', address: 'Bay View Tower, Flat 802', locality: 'Marine Drive, Kochi', createdAt: '2026-02-28' },
-  { id: 'c-7', name: 'Sneha Paul', phone: '9747144556', address: 'Main Avenue, Cross 4', locality: 'Panampilly Nagar, Kochi', createdAt: '2026-03-05' },
-  { id: 'c-8', name: 'Mathew Thomas', phone: '9846366778', address: 'Princess Street', locality: 'Fort Kochi, Kochi', createdAt: '2026-04-01' },
+  { id: 'c-1', name: 'Arun Kumar', phone: '9846012345', email: 'arun.k@gmail.com', address: 'Flat 4B, SkyLine Ivy', locality: 'Edappally', city: 'Kochi', pincode: '682024', landmark: 'Near Lulu Mall', createdAt: '2026-01-10' },
+  { id: 'c-2', name: 'Faisal Mohammed', phone: '9745098765', email: 'faisal.m@yahoo.com', address: 'Door 18/42, Deshabhimani Junction', locality: 'Kaloor', city: 'Kochi', pincode: '682017', landmark: 'Near Jawaharlal Stadium', createdAt: '2026-02-14' },
+  { id: 'c-3', name: 'Priya Nair', phone: '9946154321', email: 'priya.nair@outlook.com', address: 'Villa 12, InfoPark Enclave', locality: 'Kakkanad', city: 'Kochi', pincode: '682030', landmark: 'Opposite Rajagiri School', createdAt: '2026-03-01' },
+  { id: 'c-4', name: 'George Varghese', phone: '9847233445', address: 'House 5, KP Vallon Road', locality: 'Kadavanthra', city: 'Kochi', pincode: '682020', createdAt: '2026-03-12' },
+  { id: 'c-5', name: 'Nikhil Raj', phone: '9995088776', address: 'Shop 2A, Railway Station Road', locality: 'Aluva', city: 'Kochi', pincode: '683101', landmark: 'Near Metro Pillar 42', createdAt: '2026-01-20' },
+  { id: 'c-6', name: 'Anjali Menon', phone: '9846811223', address: 'Bay View Tower, Flat 802', locality: 'Marine Drive', city: 'Kochi', pincode: '682031', createdAt: '2026-02-28' },
+  { id: 'c-7', name: 'Sneha Paul', phone: '9747144556', address: 'Main Avenue, Cross 4', locality: 'Panampilly Nagar', city: 'Kochi', pincode: '682036', landmark: 'Near Central Park', createdAt: '2026-03-05' },
+  { id: 'c-8', name: 'Mathew Thomas', phone: '9846366778', address: 'Princess Street', locality: 'Fort Kochi', city: 'Kochi', pincode: '682001', createdAt: '2026-04-01' },
 ];
 
 const INITIAL_ASSETS: Asset[] = [
@@ -213,10 +180,34 @@ function generateSeedServices(): ServiceRecord[] {
   }));
 }
 
+function generateSeedServiceHistory(): CompletedServiceRecord[] {
+  const today = new Date();
+  const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(today.getDate() - n);
+    return formatYMD(d);
+  };
+
+  return [
+    {
+      id: 'sr-1',
+      customerId: 'c-8',
+      assetId: 'a-8',
+      serviceName: 'AC Periodic General Service',
+      serviceDate: daysAgo(7),
+      feeCharged: 1200,
+      status: 'COMPLETED',
+      notes: 'Payment ₹1,200 collected via UPI',
+      createdAt: daysAgo(7),
+    },
+  ];
+}
+
 const RenewalDeskContext = createContext<RenewalDeskContextType | null>(null);
 
 export function RenewalDeskProvider({ children }: { children: React.ReactNode }) {
-  const { user, business: authBiz, isConfigured, isLoading: isAuthLoading } = useAuth();
+  const { user, business: authBiz, isConfigured, isLoading: isAuthLoading, refreshBusinessContext } = useAuth();
   const isDatabaseMode = Boolean(isConfigured && user && authBiz);
 
   // When Supabase is configured, start empty so sample records never flash in cloud mode.
@@ -224,6 +215,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   const [customers, setCustomers] = useState<Customer[]>(() => (isConfigured ? [] : INITIAL_CUSTOMERS));
   const [assets, setAssets] = useState<Asset[]>(() => (isConfigured ? [] : INITIAL_ASSETS));
   const [services, setServices] = useState<ServiceRecord[]>(() => (isConfigured ? [] : generateSeedServices()));
+  const [serviceHistory, setServiceHistory] = useState<CompletedServiceRecord[]>(() => (isConfigured ? [] : generateSeedServiceHistory()));
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>(() => (isConfigured ? [] : INITIAL_CATALOG));
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>(() => (isConfigured ? [] : DEFAULT_TEMPLATES));
   const [business, setBusiness] = useState<BusinessProfile>(() => {
@@ -248,7 +240,12 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
 
   // Keep business header in sync with active auth tenant
   useEffect(() => {
-    if (authBiz && (!business.name || business.name !== authBiz.name)) {
+    if (
+      authBiz &&
+      (!business.name ||
+        business.name !== authBiz.name ||
+        business.industry !== authBiz.businessType)
+    ) {
       setBusiness(prev => ({
         ...prev,
         name: authBiz.name || prev.name,
@@ -258,7 +255,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         currency: authBiz.currency || prev.currency,
       }));
     }
-  }, [authBiz, business.name]);
+  }, [authBiz, business.name, business.industry]);
 
   // Remember which tenant's records are currently displayed so a workspace switch
   // clears the previous tenant before the next tenant's data starts loading.
@@ -276,6 +273,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCustomers([]);
       setAssets([]);
       setServices([]);
+      setServiceHistory([]);
       setCatalog([]);
       setTemplates([]);
       setBusiness(EMPTY_BUSINESS);
@@ -291,6 +289,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCustomers(data.customers);
       setAssets(data.assets);
       setServices(data.services);
+      setServiceHistory(data.serviceHistory || []);
       // Display only records returned for this workspace. Never invent cloud records
       // by substituting local sample catalog/templates when the database returns none.
       setCatalog(data.catalog);
@@ -305,6 +304,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCustomers([]);
       setAssets([]);
       setServices([]);
+      setServiceHistory([]);
       setCatalog([]);
       setTemplates([]);
       setBusiness(EMPTY_BUSINESS);
@@ -344,6 +344,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCustomers([]);
       setAssets([]);
       setServices([]);
+      setServiceHistory([]);
       setCatalog([]);
       setTemplates([]);
       setBusiness(EMPTY_BUSINESS);
@@ -359,6 +360,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       setCustomers([]);
       setAssets([]);
       setServices([]);
+      setServiceHistory([]);
       setCatalog([]);
       setTemplates([]);
       setBusiness(EMPTY_BUSINESS);
@@ -373,6 +375,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       const storedCust = localStorage.getItem('rd_customers');
       const storedAssets = localStorage.getItem('rd_assets');
       const storedServices = localStorage.getItem('rd_services');
+      const storedHistory = localStorage.getItem('rd_service_records');
       const storedTemplates = localStorage.getItem('rd_templates');
       const storedBiz = localStorage.getItem('rd_business');
       const storedCat = localStorage.getItem('rd_catalog');
@@ -386,16 +389,41 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
           ...s,
           urgency: calculateDueStatus(s.nextDueDate).urgency,
         })));
+        if (storedHistory) {
+          try {
+            setServiceHistory(JSON.parse(storedHistory));
+          } catch {
+            setServiceHistory(generateSeedServiceHistory());
+          }
+        } else {
+          const seedHistory = generateSeedServiceHistory();
+          setServiceHistory(seedHistory);
+          localStorage.setItem('rd_service_records', JSON.stringify(seedHistory));
+        }
       } else {
         const seedServices = generateSeedServices();
+        const seedHistory = generateSeedServiceHistory();
         setServices(seedServices);
+        setServiceHistory(seedHistory);
         localStorage.setItem('rd_customers', JSON.stringify(INITIAL_CUSTOMERS));
         localStorage.setItem('rd_assets', JSON.stringify(INITIAL_ASSETS));
         localStorage.setItem('rd_services', JSON.stringify(seedServices));
+        localStorage.setItem('rd_service_records', JSON.stringify(seedHistory));
       }
 
+      let activeIndustry = INITIAL_BUSINESS.industry;
+      if (storedBiz) {
+        try {
+          const parsedBiz = JSON.parse(storedBiz);
+          setBusiness(parsedBiz);
+          if (parsedBiz?.industry || parsedBiz?.business_type) {
+            activeIndustry = parsedBiz.industry || parsedBiz.business_type;
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
       if (storedTemplates) setTemplates(JSON.parse(storedTemplates));
-      if (storedBiz) setBusiness(JSON.parse(storedBiz));
       if (storedCat) {
         try {
           const parsed = JSON.parse(storedCat);
@@ -410,12 +438,15 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
           }));
           setCatalog(migrated);
         } catch {
-          setCatalog(INITIAL_CATALOG);
+          setCatalog(getPresetsForCategory(activeIndustry));
         }
+      } else if (storedBiz) {
+        setCatalog(getPresetsForCategory(activeIndustry));
       }
     } catch (e) {
       console.error('Error loading RenewalDesk state', e);
       setServices(generateSeedServices());
+      setServiceHistory(generateSeedServiceHistory());
     } finally {
       setIsLoadingDb(false);
       setIsLoaded(true);
@@ -429,13 +460,14 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       localStorage.setItem('rd_customers', JSON.stringify(customers));
       localStorage.setItem('rd_assets', JSON.stringify(assets));
       localStorage.setItem('rd_services', JSON.stringify(services));
+      localStorage.setItem('rd_service_records', JSON.stringify(serviceHistory));
       localStorage.setItem('rd_templates', JSON.stringify(templates));
       localStorage.setItem('rd_business', JSON.stringify(business));
       localStorage.setItem('rd_catalog', JSON.stringify(catalog));
     } catch (e) {
       console.error('Error saving state to localStorage', e);
     }
-  }, [customers, assets, services, templates, business, catalog, isLoaded, isDatabaseMode, isAuthLoading, isConfigured, user]);
+  }, [customers, assets, services, serviceHistory, templates, business, catalog, isLoaded, isDatabaseMode, isAuthLoading, isConfigured, user]);
 
   const addCustomer = async (
     custData: Omit<Customer, 'id' | 'createdAt'>,
@@ -556,6 +588,20 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
       : (catalogItem ? catalogItem.intervalUnit : (targetService.intervalUnit ?? 'MONTHS'));
 
     const nextDue = calculateNextDueDate(compDate, intervalVal, intervalUnit);
+    const fee = Number(amountCollected !== undefined ? amountCollected : targetService.serviceAmount) || 0;
+
+    const newHistoryRecord: CompletedServiceRecord = {
+      id: `rec-${Date.now()}`,
+      customerId: targetService.customerId,
+      assetId: targetService.assetId || undefined,
+      serviceName: targetService.serviceName,
+      serviceDate: compDate,
+      feeCharged: fee,
+      status: 'COMPLETED',
+      notes: `Service marked complete. Fee collected: ${fee}`,
+      createdAt: new Date().toISOString(),
+    };
+    setServiceHistory(prev => [newHistoryRecord, ...prev]);
 
     setServices(prev => prev.map(s => {
       if (s.id !== serviceId) return s;
@@ -754,24 +800,27 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         id: cId,
         name: norm.name,
         phone: norm.phone,
-        address: norm.address || 'Kochi',
-        locality: norm.address || 'Kochi',
+        address: norm.address || '',
+        locality: norm.locality || undefined,
+        city: norm.city || undefined,
+        pincode: norm.pincode || undefined,
+        landmark: norm.landmark || undefined,
         createdAt: new Date().toISOString().split('T')[0],
       });
       newAssets.push({
         id: aId,
         customerId: cId,
-        name: norm.assetName || 'Air Conditioner',
+        name: norm.assetName || (catalog[0]?.name ? `${catalog[0].name.split(' ')[0]} Unit` : 'Primary Appliance'),
       });
       newServices.push({
         id: sId,
         customerId: cId,
         assetId: aId,
-        serviceName: 'AC Periodic General Service',
+        serviceName: catalog[0]?.name || 'Periodic Routine Service',
         lastServiceDate: norm.lastServiceDate,
         nextDueDate: norm.nextDueDate,
-        intervalMonths: 6,
-        serviceAmount: norm.serviceAmount || 1200,
+        intervalMonths: catalog[0]?.defaultIntervalMonths || 6,
+        serviceAmount: norm.serviceAmount || catalog[0]?.typicalPrice || 1200,
         urgency: calculateDueStatus(norm.nextDueDate).urgency,
         followUpStatus: 'NOT_CONTACTED',
       });
@@ -792,12 +841,79 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     }
   };
 
-  const updateBusiness = (biz: BusinessProfile) => {
-    setBusiness(biz);
+  const addTemplate = async (tpl: Omit<WhatsAppTemplate, 'id'>): Promise<WhatsAppTemplate> => {
     if (isDatabaseMode && authBiz) {
-      updateBusinessInDb(authBiz.id, biz)
-        .then(() => reloadFromDb())
-        .catch(err => { void reportMutationFailure('Saving business settings', err); });
+      try {
+        const created = await createMessageTemplateInDb(authBiz.id, tpl);
+        setTemplates(prev => [...prev, created]);
+        void reloadFromDb();
+        return created;
+      } catch (err) {
+        void reportMutationFailure('Creating message template', err);
+        throw err;
+      }
+    } else {
+      const newTpl: WhatsAppTemplate = {
+        id: `tpl-custom-${Date.now()}`,
+        name: tpl.name.trim(),
+        type: tpl.type,
+        templateText: tpl.templateText,
+      };
+      setTemplates(prev => [...prev, newTpl]);
+      return newTpl;
+    }
+  };
+
+  const deleteTemplate = async (id: string): Promise<void> => {
+    if (isDatabaseMode && authBiz) {
+      try {
+        await deleteMessageTemplateInDb(authBiz.id, id);
+        setTemplates(prev => prev.filter(t => t.id !== id));
+        void reloadFromDb();
+      } catch (err) {
+        void reportMutationFailure('Deleting message template', err);
+        throw err;
+      }
+    } else {
+      setTemplates(prev => prev.filter(t => t.id !== id));
+    }
+  };
+
+  const restoreDefaultTemplates = async (): Promise<void> => {
+    if (isDatabaseMode && authBiz) {
+      try {
+        const restored = await restoreDefaultMessageTemplatesInDb(authBiz.id, business.industry);
+        setTemplates(restored);
+        void reloadFromDb();
+      } catch (err) {
+        void reportMutationFailure('Restoring default templates', err);
+        throw err;
+      }
+    } else {
+      const starters = getInitialTemplatesForCategory(business.industry);
+      setTemplates(prev => {
+        const customOnly = prev.filter(t => t.type === 'CUSTOM' || t.id.startsWith('tpl-custom-'));
+        return [...starters, ...customOnly];
+      });
+    }
+  };
+
+  const updateBusiness = async (biz: BusinessProfile) => {
+    setBusiness(biz);
+    if (!isDatabaseMode) {
+      localStorage.setItem('rd_business', JSON.stringify(biz));
+    }
+    if (isDatabaseMode && authBiz) {
+      try {
+        await updateBusinessInDb(authBiz.id, biz);
+        await reloadFromDb();
+        if (refreshBusinessContext) {
+          await refreshBusinessContext();
+        }
+      } catch (err: any) {
+        void reportMutationFailure('Saving business settings', err);
+        throw err;
+      }
     }
   };
 
@@ -809,12 +925,14 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     localStorage.removeItem('rd_customers');
     localStorage.removeItem('rd_assets');
     localStorage.removeItem('rd_services');
+    localStorage.removeItem('rd_service_records');
     localStorage.removeItem('rd_templates');
     localStorage.removeItem('rd_business');
     localStorage.removeItem('rd_catalog');
     setCustomers(INITIAL_CUSTOMERS);
     setAssets(INITIAL_ASSETS);
     setServices(generateSeedServices());
+    setServiceHistory(generateSeedServiceHistory());
     setTemplates(DEFAULT_TEMPLATES);
     setBusiness(INITIAL_BUSINESS);
     setCatalog(INITIAL_CATALOG);
@@ -829,6 +947,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         catalog,
         templates,
         business,
+        serviceHistory,
         isLoaded,
         isLoadingDb,
         dbError,
@@ -839,6 +958,9 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         markServiceCompleted,
         importCustomersFromCSV,
         updateTemplate,
+        addTemplate,
+        deleteTemplate,
+        restoreDefaultTemplates,
         updateBusiness,
         addServiceType,
         updateServiceType,

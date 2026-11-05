@@ -8,12 +8,12 @@ import { AppShell } from '@/components/AppShell';
 import { parseCSVText, guessMapping, validateAndMapRows, CSVMapping, ParsedCSVRow } from '@/lib/csv-import';
 import { UploadCloud, CheckCircle2, AlertTriangle, ArrowRight, Download, FileSpreadsheet, RefreshCw } from 'lucide-react';
 
-const SAMPLE_CSV = `Customer Name,Mobile,Appliance Model,Last Service,Next Due Date,Fee,Locality
-Suresh Menon,9846055441,Daikin 1.5T Inverter,2026-04-05,2026-10-05,1200,Palarivattom
-Vipin Das,9745123490,LG Dual Inverter,2026-03-20,2026-09-20,1500,Vyttila
-Latha Nair,9847098112,Samsung WindFree 2T,2026-04-12,2026-10-12,1800,Kakkanad
-Robin Mathew,9946011998,Voltas 1 Ton Window,2026-04-01,2026-10-01,900,Aluva
-Deepa Thomas,9846111222,Panasonic Smart AC,2026-04-08,2026-10-08,1200,Edappally`;
+const SAMPLE_CSV = `Customer Name,Mobile,Appliance Model,Last Service,Next Due Date,Fee,Address,Locality,City,PIN Code,Landmark
+Suresh Menon,9846055441,Daikin 1.5T Inverter,2026-04-05,2026-10-05,1200,Flat 2A SkyCity,Palarivattom,Kochi,682025,Near Metro Pillar 500
+Vipin Das,9745123490,LG Dual Inverter,2026-03-20,2026-09-20,1500,Door 12/90,Vyttila,Kochi,682019,Near Mobility Hub
+Latha Nair,9847098112,Samsung WindFree 2T,2026-04-12,2026-10-12,1800,Villa 8 InfoPark,Kakkanad,Kochi,682030,Opposite Rajagiri
+Robin Mathew,9946011998,Voltas 1 Ton Window,2026-04-01,2026-10-01,900,Station Road,Aluva,Kochi,683101,Near Railway Station
+Deepa Thomas,9846111222,Panasonic Smart AC,2026-04-08,2026-10-08,1200,BayView Apt 401,Edappally,Kochi,682024,Near Lulu Mall`;
 
 export default function ImportPage() {
   const router = useRouter();
@@ -31,6 +31,10 @@ export default function ImportPage() {
     nextDateCol: '',
     amountCol: '',
     addressCol: '',
+    localityCol: '',
+    cityCol: '',
+    pincodeCol: '',
+    landmarkCol: '',
   });
 
   const [validRows, setValidRows] = useState<ParsedCSVRow[]>([]);
@@ -309,9 +313,9 @@ export default function ImportPage() {
                 </div>
               </div>
 
-              {/* Locality */}
+              {/* Address */}
               <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                <div className="sm:col-span-4 font-semibold text-gray-700">Locality / Address</div>
+                <div className="sm:col-span-4 font-semibold text-gray-700">Customer Address / Street</div>
                 <div className="sm:col-span-4">
                   <select
                     value={mapping.addressCol}
@@ -324,6 +328,86 @@ export default function ImportPage() {
                 </div>
                 <div className="sm:col-span-4 text-gray-400 truncate">
                   Sample: {rawRows[0]?.[mapping.addressCol] || '—'}
+                </div>
+              </div>
+
+              {/* Locality */}
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-gray-50/50">
+                <div className="sm:col-span-4 font-semibold text-gray-700">
+                  Locality / Area <span className="text-gray-400 font-normal">(Optional)</span>
+                </div>
+                <div className="sm:col-span-4">
+                  <select
+                    value={mapping.localityCol}
+                    onChange={(e) => setMapping({ ...mapping, localityCol: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="">Select column (optional)...</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-4 text-gray-400 truncate">
+                  Sample: {mapping.localityCol ? rawRows[0]?.[mapping.localityCol] : '—'}
+                </div>
+              </div>
+
+              {/* City */}
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-4 font-semibold text-gray-700">
+                  City / Town <span className="text-gray-400 font-normal">(Optional)</span>
+                </div>
+                <div className="sm:col-span-4">
+                  <select
+                    value={mapping.cityCol}
+                    onChange={(e) => setMapping({ ...mapping, cityCol: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="">Select column (optional)...</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-4 text-gray-400 truncate">
+                  Sample: {mapping.cityCol ? rawRows[0]?.[mapping.cityCol] : '—'}
+                </div>
+              </div>
+
+              {/* PIN Code */}
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-gray-50/50">
+                <div className="sm:col-span-4 font-semibold text-gray-700">
+                  PIN Code <span className="text-gray-400 font-normal">(Optional)</span>
+                </div>
+                <div className="sm:col-span-4">
+                  <select
+                    value={mapping.pincodeCol}
+                    onChange={(e) => setMapping({ ...mapping, pincodeCol: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="">Select column (optional)...</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-4 text-gray-400 truncate">
+                  Sample: {mapping.pincodeCol ? rawRows[0]?.[mapping.pincodeCol] : '—'}
+                </div>
+              </div>
+
+              {/* Landmark */}
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-4 font-semibold text-gray-700">
+                  Landmark <span className="text-gray-400 font-normal">(Optional)</span>
+                </div>
+                <div className="sm:col-span-4">
+                  <select
+                    value={mapping.landmarkCol}
+                    onChange={(e) => setMapping({ ...mapping, landmarkCol: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="">Select column (optional)...</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-4 text-gray-400 truncate">
+                  Sample: {mapping.landmarkCol ? rawRows[0]?.[mapping.landmarkCol] : '—'}
                 </div>
               </div>
             </div>

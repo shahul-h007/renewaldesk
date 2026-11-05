@@ -5,6 +5,7 @@ import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { Building2, Save, Check, RotateCcw, ShieldCheck, Cloud, Database, AlertCircle } from 'lucide-react';
+import { BUSINESS_TYPE_OPTIONS, getCanonicalCategoryLabel } from '@/lib/catalog-presets';
 
 export default function SettingsPage() {
   const { business, updateBusiness, resetDemoData, isDatabaseMode, isLoadingDb, isLoaded } = useRenewalDesk();
@@ -13,16 +14,18 @@ export default function SettingsPage() {
   const [name, setName] = useState(business.name);
   const [phone, setPhone] = useState(business.phone);
   const [city, setCity] = useState(business.city);
-  const [industry, setIndustry] = useState(business.industry);
+  const [industry, setIndustry] = useState(() => getCanonicalCategoryLabel(business.industry));
   const [interval, setInterval] = useState(business.defaultIntervalMonths);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (business.name) {
       setName(business.name);
       setPhone(business.phone);
       setCity(business.city);
-      setIndustry(business.industry);
+      setIndustry(getCanonicalCategoryLabel(business.industry));
       setInterval(business.defaultIntervalMonths);
     }
   }, [business]);
@@ -50,18 +53,29 @@ export default function SettingsPage() {
     );
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateBusiness({
-      ...business,
-      name,
-      phone,
-      city,
-      industry,
-      defaultIntervalMonths: Number(interval),
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const canonicalIndustry = getCanonicalCategoryLabel(industry);
+      await updateBusiness({
+        ...business,
+        name,
+        phone,
+        city,
+        industry: canonicalIndustry,
+        defaultIntervalMonths: Number(interval),
+      });
+      setIndustry(canonicalIndustry);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      console.error('Failed to update business settings:', err);
+      setSaveError(err?.message || 'Failed to save settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -124,26 +138,57 @@ export default function SettingsPage() {
               <select
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                disabled={isSaving}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500"
               >
-                <option value="Air Conditioning Maintenance">Air Conditioning Maintenance</option>
-                <option value="RO Water Purifier Service">RO Water Purifier Service</option>
-                <option value="Pest Control Services">Pest Control Services</option>
-                <option value="Home Appliance Repair">Home Appliance Repair</option>
+                {BUSINESS_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
               </select>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Changing your industry vertical preserves all existing customer records, service cycles, and custom templates.
+              </p>
             </div>
           </div>
 
           <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-xs text-emerald-600 font-semibold">
-              {saved && '✓ Business settings saved!'}
-            </span>
+            <div>
+              {saved && (
+                <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" /> Business settings saved successfully!
+                </span>
+              )}
+              {saveError && (
+                <span className="text-xs text-rose-600 font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" /> {saveError}
+                </span>
+              )}
+            </div>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm flex items-center gap-2"
+              disabled={isSaving}
+              className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-2 transition-colors ${
+                isSaving ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              Save Changes
+              {isSaving ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : saved ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </>
+              )}
             </button>
           </div>
         </form>

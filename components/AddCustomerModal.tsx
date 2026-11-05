@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { IntervalUnit } from '@/lib/types';
+import { getCategoryMetadata } from '@/lib/catalog-presets';
 import { X, UserPlus, Sparkles, Clock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 
 interface AddCustomerModalProps {
@@ -13,6 +14,7 @@ interface AddCustomerModalProps {
 
 export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const { addCustomer, business, catalog } = useRenewalDesk();
+  const categoryMeta = getCategoryMetadata(business?.industry);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const sixMonthsAgo = () => {
@@ -24,21 +26,24 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [locality, setLocality] = useState('Kochi');
+  const [locality, setLocality] = useState('');
+  const [city, setCity] = useState(business?.city || '');
+  const [pincode, setPincode] = useState('');
+  const [landmark, setLandmark] = useState('');
 
-  const [assetName, setAssetName] = useState('Samsung Split AC');
-  const [capacity, setCapacity] = useState('1.5 Ton');
-  const [location, setLocation] = useState('Master Bedroom');
+  const [assetName, setAssetName] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [location, setLocation] = useState('');
 
   const activeCatalog = catalog.filter(c => c.isActive !== false);
   const defaultItem = activeCatalog[0] || catalog[0];
 
-  const [serviceName, setServiceName] = useState(defaultItem?.name || 'AC Periodic General Service');
-  const [intervalValue, setIntervalValue] = useState(defaultItem?.intervalValue ?? 6);
-  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(defaultItem?.intervalUnit ?? 'MONTHS');
+  const [serviceName, setServiceName] = useState(defaultItem?.name || categoryMeta.services[0]?.name || 'Periodic Routine Service');
+  const [intervalValue, setIntervalValue] = useState(defaultItem?.intervalValue ?? categoryMeta.services[0]?.intervalValue ?? 6);
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(defaultItem?.intervalUnit ?? categoryMeta.services[0]?.intervalUnit ?? 'MONTHS');
   const [lastServiceDate, setLastServiceDate] = useState(sixMonthsAgo());
-  const [nextDueDate, setNextDueDate] = useState(() => calculateNextDueDate(sixMonthsAgo(), defaultItem?.intervalValue ?? 6, defaultItem?.intervalUnit ?? 'MONTHS'));
-  const [serviceAmount, setServiceAmount] = useState(defaultItem?.typicalPrice ?? 1200);
+  const [nextDueDate, setNextDueDate] = useState(() => calculateNextDueDate(sixMonthsAgo(), defaultItem?.intervalValue ?? categoryMeta.services[0]?.intervalValue ?? 6, defaultItem?.intervalUnit ?? categoryMeta.services[0]?.intervalUnit ?? 'MONTHS'));
+  const [serviceAmount, setServiceAmount] = useState(defaultItem?.typicalPrice ?? categoryMeta.services[0]?.typicalPrice ?? 1200);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -85,10 +90,13 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
           name: name.trim(),
           phone: phone.trim(),
           address: address.trim(),
-          locality: locality.trim(),
+          locality: locality.trim() || undefined,
+          city: city.trim() || undefined,
+          pincode: pincode.trim() || undefined,
+          landmark: landmark.trim() || undefined,
         },
         {
-          name: assetName.trim(),
+          name: assetName.trim() || categoryMeta.assetLabel,
           capacity: capacity.trim(),
           location: location.trim(),
         },
@@ -108,7 +116,10 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
         setName('');
         setPhone('');
         setAddress('');
-        setLocality('Kochi');
+        setLocality('');
+        setCity(business?.city || '');
+        setPincode('');
+        setLandmark('');
         setSubmitError(null);
         onClose();
       } else {
@@ -203,12 +214,62 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Locality / Address</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Customer Address / Street <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. Flat 4B, Edappally, Kochi"
+                  placeholder="e.g. Flat 4B, Skyline Ivy Apartments"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Locality / Area <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Edappally"
+                  value={locality}
+                  onChange={(e) => setLocality(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Landmark <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Near Lulu Mall"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  City / Town <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Kochi"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  PIN Code <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 682024"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
@@ -218,24 +279,24 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
           {/* Section 2: Appliance / Asset */}
           <div className="pt-2 border-t border-gray-100">
             <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-3">
-              2. Appliance / Asset
+              2. {categoryMeta.assetLabel} Details
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Appliance Name & Model</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{categoryMeta.assetLabel} *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Samsung Inverter Split AC"
+                  placeholder={categoryMeta.assetPlaceholder}
                   value={assetName}
                   onChange={(e) => setAssetName(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Capacity</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{categoryMeta.capacityLabel}</label>
                 <input
                   type="text"
-                  placeholder="e.g. 1.5 Ton"
+                  placeholder={categoryMeta.capacityPlaceholder}
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"

@@ -6,6 +6,10 @@ export interface CSVMapping {
   nextDateCol: string;
   amountCol: string;
   addressCol: string;
+  localityCol?: string;
+  cityCol?: string;
+  pincodeCol?: string;
+  landmarkCol?: string;
 }
 
 export interface ParsedCSVRow {
@@ -21,6 +25,10 @@ export interface ParsedCSVRow {
     nextDueDate: string;
     serviceAmount: number;
     address: string;
+    locality?: string;
+    city?: string;
+    pincode?: string;
+    landmark?: string;
   };
 }
 
@@ -84,6 +92,9 @@ export function guessMapping(headers: string[]): CSVMapping {
     }) || '';
   };
 
+  const addressCol = findMatch(['address', 'flat', 'street', 'house', 'location']);
+  const localityCol = findMatch(['locality', 'area', 'neighborhood', 'sector']);
+
   return {
     nameCol: findMatch(['name', 'customer', 'client']),
     phoneCol: findMatch(['phone', 'mobile', 'contact', 'whatsapp', 'cell', 'tel']),
@@ -91,7 +102,11 @@ export function guessMapping(headers: string[]): CSVMapping {
     lastDateCol: findMatch(['lastservice', 'lastdate', 'servicedate', 'previousdate', 'installation']),
     nextDateCol: findMatch(['nextdue', 'duedate', 'nextservice', 'renewaldate']),
     amountCol: findMatch(['amount', 'price', 'fee', 'value', 'charge', 'rate', 'cost']),
-    addressCol: findMatch(['address', 'location', 'city', 'area', 'locality']),
+    addressCol: addressCol || localityCol,
+    localityCol: addressCol ? localityCol : '',
+    cityCol: findMatch(['city', 'town', 'district']),
+    pincodeCol: findMatch(['pincode', 'pin', 'postalcode', 'zip', 'zipcode']),
+    landmarkCol: findMatch(['landmark']),
   };
 }
 
@@ -176,7 +191,11 @@ export function validateAndMapRows(
 
     const rawAmount = (raw[mapping.amountCol] || '1200').replace(/[^0-9.]/g, '');
     const serviceAmount = parseFloat(rawAmount) || 1200;
-    const address = (raw[mapping.addressCol] || 'Kochi').trim();
+    const address = (raw[mapping.addressCol] || '').trim();
+    const locality = mapping.localityCol ? (raw[mapping.localityCol] || '').trim() || undefined : undefined;
+    const city = mapping.cityCol ? (raw[mapping.cityCol] || '').trim() || undefined : undefined;
+    const pincode = mapping.pincodeCol ? (raw[mapping.pincodeCol] || '').trim() || undefined : undefined;
+    const landmark = mapping.landmarkCol ? (raw[mapping.landmarkCol] || '').trim() || undefined : undefined;
 
     const parsedRow: ParsedCSVRow = {
       rowIndex: idx + 1,
@@ -191,6 +210,10 @@ export function validateAndMapRows(
         nextDueDate,
         serviceAmount,
         address,
+        locality,
+        city,
+        pincode,
+        landmark,
       } : undefined,
     };
 

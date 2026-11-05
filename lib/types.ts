@@ -45,7 +45,10 @@ export interface Customer {
   phone: string;
   email?: string;
   address: string;
-  locality?: string; // e.g. "Edappally, Kochi"
+  locality?: string; // e.g. "Edappally"
+  city?: string; // e.g. "Kochi"
+  pincode?: string; // e.g. "682024"
+  landmark?: string; // e.g. "Near Lulu Mall"
   notes?: string;
   createdAt: string;
 }
@@ -63,11 +66,32 @@ export interface ServiceCatalogItem {
   isActive: boolean;
 }
 
+export type TemplateType =
+  | 'DUE_SOON'
+  | 'DUE_TODAY'
+  | 'OVERDUE'
+  | 'BOOKING_CONFIRMATION'
+  | 'SERVICE_COMPLETED'
+  | 'CUSTOM';
+
 export interface WhatsAppTemplate {
   id: string;
-  type: 'DUE_SOON' | 'DUE_TODAY' | 'OVERDUE' | 'BOOKING_CONFIRMATION' | 'SERVICE_COMPLETED';
+  type: TemplateType;
   name: string;
   templateText: string;
+}
+
+export interface CompletedServiceRecord {
+  id: string;
+  customerId: string;
+  assetId?: string;
+  serviceTypeId?: string;
+  serviceName: string;
+  serviceDate: string; // YYYY-MM-DD
+  feeCharged: number;
+  status: string;
+  notes?: string;
+  createdAt?: string;
 }
 
 export interface BusinessProfile {
@@ -77,4 +101,6 @@ export interface BusinessProfile {
   city: string;
   currency: string;
   defaultIntervalMonths: number;
+  timezone?: string;
 }
+

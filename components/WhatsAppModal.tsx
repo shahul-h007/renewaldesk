@@ -5,6 +5,7 @@ import { Customer, Asset, ServiceRecord } from '@/lib/types';
 import { useRenewalDesk } from '@/lib/store';
 import { interpolateTemplate, generateWhatsAppLink } from '@/lib/whatsapp';
 import { formatReadableDate } from '@/lib/due-date-engine';
+import { getCategoryMetadata } from '@/lib/catalog-presets';
 import { X, Send, Copy, Check, MessageSquare } from 'lucide-react';
 
 interface WhatsAppModalProps {
@@ -24,12 +25,12 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
   useEffect(() => {
     if (!service || !templates.length) return;
 
-    // Pick best default template based on service urgency
+    // Pick best default template based on service urgency, avoiding custom templates in automatic selection
     let defaultTpl = templates.find(t => {
       if (service.urgency === 'OVERDUE') return t.type === 'OVERDUE';
       if (service.urgency === 'DUE_TODAY') return t.type === 'DUE_TODAY';
       return t.type === 'DUE_SOON';
-    }) || templates[0];
+    }) || templates.find(t => t.type !== 'CUSTOM') || templates[0];
 
     setSelectedTemplateId(defaultTpl.id);
   }, [service, templates]);
@@ -39,14 +40,23 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
     const tpl = templates.find(t => t.id === selectedTemplateId);
     if (!tpl) return;
 
-    const populated = interpolateTemplate(tpl.templateText, {
-      customer_name: customer.name,
-      service_name: service.serviceName,
-      asset_name: asset ? `${asset.name} (${asset.capacity || ''})` : 'Appliance',
-      due_date: formatReadableDate(service.nextDueDate),
-      business_name: business.name,
-      phone: business.phone,
-    });
+    const populated = interpolateTemplate(
+      tpl.templateText,
+      {
+        customer_name: customer.name,
+        service_name: service.serviceName,
+        asset_name: asset
+          ? `${asset.name}${asset.capacity ? ` (${asset.capacity})` : ''}`
+          : getCategoryMetadata(business.industry).assetLabel,
+        due_date: service.nextDueDate,
+        business_name: business.name,
+        business_phone: business.phone,
+        phone: business.phone,
+        booking_date: service.bookingDate,
+        next_due_date: service.nextDueDate,
+      },
+      { category: business.industry }
+    );
 
     setMessageText(populated);
   }, [selectedTemplateId, customer, asset, service, templates, business]);

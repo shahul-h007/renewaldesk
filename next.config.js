@@ -3,6 +3,10 @@ const isGhPages = process.env.NEXT_PUBLIC_BUILD_TARGET === 'gh-pages' || process
 
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+  },
   ...(isGhPages
     ? {
         output: 'export',

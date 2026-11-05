@@ -48,3 +48,4 @@ coverage/
 .turbo/
 .temp/
 supabase/.temp/
+brag-output/

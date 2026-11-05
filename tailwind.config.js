@@ -8,6 +8,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        xs: '360px',
+      },
       colors: {
         primary: {
           50: '#eff6ff',
@@ -25,6 +28,7 @@ module.exports = {
           light: '#dcfce7',
           DEFAULT: '#25D366',
           dark: '#128C7E',
+          hover: '#1ebe57',
         },
         overdue: {
           bg: '#FEE2E2',
@@ -38,6 +42,20 @@ module.exports = {
           bg: '#FEF3C7',
           text: '#D97706',
         },
+      },
+      minHeight: {
+        touch: '44px',
+      },
+      minWidth: {
+        touch: '44px',
+      },
+      borderRadius: {
+        '3xl': '1.5rem',
+        '4xl': '2rem',
+      },
+      boxShadow: {
+        '2xs': '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+        'xs': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
       },
     },
   },

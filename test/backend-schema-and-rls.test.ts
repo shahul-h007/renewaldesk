@@ -188,6 +188,9 @@ const mockDbCustomer: DbCustomer = {
   email: 'faisal@example.com',
   address: 'Edappally, Kochi, Kerala 682024',
   locality: 'Edappally',
+  city: 'Kochi',
+  pincode: '682024',
+  landmark: 'Near Metro Pillar 380',
   notes: 'Key client in Edappally',
   source: 'WALK_IN',
   archived_at: null,
@@ -202,6 +205,9 @@ assert.strictEqual(appCustomer.phone, '9847123456');
 assert.strictEqual(appCustomer.email, 'faisal@example.com');
 assert.strictEqual(appCustomer.address, 'Edappally, Kochi, Kerala 682024');
 assert.strictEqual(appCustomer.locality, 'Edappally');
+assert.strictEqual(appCustomer.city, 'Kochi');
+assert.strictEqual(appCustomer.pincode, '682024');
+assert.strictEqual(appCustomer.landmark, 'Near Metro Pillar 380');
 assert.strictEqual(appCustomer.notes, 'Key client in Edappally');
 assert.strictEqual(appCustomer.createdAt, '2026-01-10');
 console.log('  ✔ mapDbCustomerToApp maps all fields correctly');

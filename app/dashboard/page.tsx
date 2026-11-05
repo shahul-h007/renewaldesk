@@ -74,6 +74,9 @@ export default function DashboardPage() {
         c?.name.toLowerCase().includes(q) ||
         c?.phone.includes(q) ||
         c?.locality?.toLowerCase().includes(q) ||
+        c?.city?.toLowerCase().includes(q) ||
+        c?.address?.toLowerCase().includes(q) ||
+        c?.landmark?.toLowerCase().includes(q) ||
         a?.name.toLowerCase().includes(q)
       );
     });

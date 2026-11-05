@@ -1,4 +1,4 @@
-import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit } from '../types';
+import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, TemplateType, BusinessProfile, FollowUpStatus, IntervalUnit } from '../types';
 
 export interface DbProfile {
   id: string;
@@ -32,6 +32,9 @@ export interface DbCustomer {
   email: string | null;
   address: string | null;
   locality: string | null;
+  city: string | null;
+  pincode: string | null;
+  landmark: string | null;
   notes: string | null;
   source: string | null;
   created_at: string;
@@ -120,7 +123,7 @@ export interface DbMessageTemplate {
   id: string;
   business_id: string;
   name: string;
-  template_type: 'DUE_SOON' | 'DUE_TODAY' | 'OVERDUE' | 'BOOKING_CONFIRMATION' | 'SERVICE_COMPLETED';
+  template_type: TemplateType;
   message_body: string;
   is_active: boolean;
   created_at: string;

@@ -9,6 +9,7 @@ import { WhatsAppModal } from './WhatsAppModal';
 import { CompleteServiceModal } from './CompleteServiceModal';
 import { Phone, MessageSquare, CheckCircle2, Calendar, MoreVertical } from 'lucide-react';
 import { formatINR } from '@/lib/format';
+import { formatAddressSummary, formatCustomerAddress } from '@/lib/address-utils';
 
 interface FollowUpRowProps {
   service: ServiceRecord;
@@ -64,8 +65,8 @@ export function FollowUpRow({
             </h4>
             <StatusBadge status={service.followUpStatus} />
           </div>
-          <p className="text-xs text-gray-500 truncate mt-0.5">
-            {customer.phone} {customer.locality ? `• ${customer.locality}` : ''}
+          <p className="text-xs text-gray-500 truncate mt-0.5" title={formatCustomerAddress(customer)}>
+            {customer.phone} {formatAddressSummary(customer) ? `• ${formatAddressSummary(customer)}` : (customer.address ? `• ${customer.address}` : '')}
           </p>
         </div>
 

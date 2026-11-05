@@ -6,23 +6,16 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { BrandLogo } from '@/components/BrandLogo';
 import { RotateCw, Building2, Phone, MapPin, Wrench, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { BUSINESS_TYPE_OPTIONS, getPresetsForCategory, getInitialTemplatesForCategory } from '@/lib/catalog-presets';
 
-const BUSINESS_TYPES = [
-  'Air Conditioning Maintenance',
-  'RO Water Purifier Service',
-  'Appliance Repair & Maintenance',
-  'Pest Control Services',
-  'Home Cleaning & Deep Wash',
-  'Solar Panel Maintenance',
-  'General Electrical & Plumbing',
-];
+const BUSINESS_TYPES = BUSINESS_TYPE_OPTIONS;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, isConfigured, isLoading: isAuthLoading, business: existingBiz, refreshBusinessContext, authError } = useAuth();
 
   const [businessName, setBusinessName] = useState('');
-  const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
+  const [businessType, setBusinessType] = useState<string>(BUSINESS_TYPES[0]);
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Kochi');
   const [timezone] = useState('Asia/Kolkata');
@@ -122,6 +115,8 @@ export default function OnboardingPage() {
           defaultIntervalMonths: 6,
         };
         localStorage.setItem('rd_business', JSON.stringify(demoBiz));
+        localStorage.setItem('rd_catalog', JSON.stringify(getPresetsForCategory(businessType)));
+        localStorage.setItem('rd_templates', JSON.stringify(getInitialTemplatesForCategory(businessType)));
         router.push('/dashboard');
       }
     } catch (err: any) {

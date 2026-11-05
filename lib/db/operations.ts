@@ -1,7 +1,8 @@
 import { createClient } from '../supabase/client';
-import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit } from '../types';
+import { Customer, Asset, ServiceRecord, ServiceCatalogItem, WhatsAppTemplate, BusinessProfile, FollowUpStatus, IntervalUnit, CompletedServiceRecord } from '../types';
 import { calculateDueStatus, calculateNextDueDate } from '../due-date-engine';
-import { DbCustomer, DbAsset, DbServiceType, DbServiceSchedule, DbReminder, DbMessageTemplate, DbBusiness } from './types';
+import { getCategoryMetadata, getInitialTemplatesForCategory, getCanonicalCategoryLabel } from '../catalog-presets';
+import { DbCustomer, DbAsset, DbServiceType, DbServiceSchedule, DbReminder, DbMessageTemplate, DbBusiness, DbServiceRecord } from './types';
 import {
   checkBusinessCustomerCapacity,
   CustomerLimitReachedError,
@@ -23,6 +24,7 @@ export async function fetchBusinessData(businessId: string) {
     remindRes,
     tplRes,
     bizRes,
+    historyRes,
   ] = await Promise.all([
     supabase.from('customers').select('*').eq('business_id', businessId).is('archived_at', null).order('created_at', { ascending: false }),
     supabase.from('assets').select('*').eq('business_id', businessId),
@@ -31,6 +33,7 @@ export async function fetchBusinessData(businessId: string) {
     supabase.from('reminders').select('*').eq('business_id', businessId),
     supabase.from('message_templates').select('*').eq('business_id', businessId),
     supabase.from('businesses').select('*').eq('id', businessId).maybeSingle(),
+    supabase.from('service_records').select('*').eq('business_id', businessId).order('service_date', { ascending: false }),
   ]);
 
   if (custRes.error) throw custRes.error;
@@ -40,6 +43,7 @@ export async function fetchBusinessData(businessId: string) {
   if (remindRes.error) throw remindRes.error;
   if (tplRes.error) throw tplRes.error;
   if (bizRes.error) throw bizRes.error;
+  if (historyRes.error) throw historyRes.error;
   if (!bizRes.data) {
     throw new Error('The active business workspace could not be found. Please sign in again or select a valid workspace.');
   }
@@ -51,6 +55,7 @@ export async function fetchBusinessData(businessId: string) {
   const dbReminders: DbReminder[] = remindRes.data || [];
   const dbTemplates: DbMessageTemplate[] = tplRes.data || [];
   const dbBiz: DbBusiness | null = bizRes.data;
+  const dbRecords: DbServiceRecord[] = historyRes.data || [];
 
   // Map to frontend Customer model
   const customers: Customer[] = dbCustomers.map(mapDbCustomerToApp);
@@ -75,14 +80,29 @@ export async function fetchBusinessData(businessId: string) {
     templateText: tpl.message_body,
   }));
 
+  // Map to frontend Service History (completed records)
+  const serviceHistory: CompletedServiceRecord[] = dbRecords.map((r) => ({
+    id: r.id,
+    customerId: r.customer_id,
+    assetId: r.asset_id || undefined,
+    serviceTypeId: r.service_type_id || undefined,
+    serviceName: r.service_name,
+    serviceDate: r.service_date,
+    feeCharged: Number(r.fee_charged) || 0,
+    status: r.status,
+    notes: r.notes || undefined,
+    createdAt: r.created_at,
+  }));
+
   // Map to frontend Business profile
   const business: BusinessProfile = {
     name: dbBiz?.name || 'My Service Business',
     phone: dbBiz?.phone || '',
-    industry: dbBiz?.business_type || 'Air Conditioning Maintenance',
+    industry: getCanonicalCategoryLabel(dbBiz?.business_type),
     city: dbBiz?.address || 'Kochi',
     currency: dbBiz?.currency || '₹',
     defaultIntervalMonths: dbBiz?.default_interval_months || 6,
+    timezone: dbBiz?.timezone || 'Asia/Kolkata',
   };
 
   return {
@@ -92,6 +112,7 @@ export async function fetchBusinessData(businessId: string) {
     catalog,
     templates,
     business,
+    serviceHistory,
   };
 }
 
@@ -128,6 +149,9 @@ export async function createCustomerInDb(
       email: custData.email?.trim() || null,
       address: custData.address?.trim() || null,
       locality: custData.locality?.trim() || null,
+      city: custData.city?.trim() || null,
+      pincode: custData.pincode?.trim() || null,
+      landmark: custData.landmark?.trim() || null,
     })
     .select()
     .single();
@@ -268,6 +292,9 @@ export async function updateCustomerInDb(businessId: string, customer: Customer)
       email: customer.email?.trim() || null,
       address: customer.address?.trim() || null,
       locality: customer.locality?.trim() || null,
+      city: customer.city?.trim() || null,
+      pincode: customer.pincode?.trim() || null,
+      landmark: customer.landmark?.trim() || null,
       notes: customer.notes?.trim() || null,
       updated_at: new Date().toISOString(),
     })
@@ -399,6 +426,34 @@ export async function importCustomersFromCSVInDb(
   const errors: string[] = [];
   const maxCanImport = capacity.remainingCapacity;
 
+  // Resolve business category and catalog defaults to avoid AC-specific hardcoding
+  let defaultServiceName = 'Periodic Routine Service';
+  let defaultAssetLabel = 'Primary Asset';
+  let defaultAmount = 1200;
+  let defaultInterval = 6;
+
+  try {
+    const [bizRes, sTypeRes] = await Promise.all([
+      supabase.from('businesses').select('business_type').eq('id', businessId).maybeSingle(),
+      supabase.from('service_types').select('name, typical_fee, interval_value').eq('business_id', businessId).eq('is_active', true).limit(1),
+    ]);
+
+    const categoryMeta = getCategoryMetadata(bizRes.data?.business_type);
+    defaultAssetLabel = categoryMeta.assetLabel;
+
+    if (sTypeRes.data && sTypeRes.data.length > 0) {
+      defaultServiceName = sTypeRes.data[0].name;
+      defaultAmount = Number(sTypeRes.data[0].typical_fee) || 1200;
+      defaultInterval = Number(sTypeRes.data[0].interval_value) || 6;
+    } else if (categoryMeta.services.length > 0) {
+      defaultServiceName = categoryMeta.services[0].name;
+      defaultAmount = categoryMeta.services[0].typicalPrice;
+      defaultInterval = categoryMeta.services[0].intervalValue;
+    }
+  } catch (lookupErr) {
+    console.warn('Could not resolve business service types for CSV defaults:', lookupErr);
+  }
+
   for (let index = 0; index < validRows.length; index++) {
     const row = validRows[index];
     const norm = row.normalized;
@@ -419,18 +474,21 @@ export async function importCustomersFromCSVInDb(
         {
           name: norm.name,
           phone: norm.phone,
-          address: norm.address || 'Kochi',
-          locality: norm.address || 'Kochi',
+          address: norm.address || '',
+          locality: norm.locality || norm.address || undefined,
+          city: norm.city || undefined,
+          pincode: norm.pincode || undefined,
+          landmark: norm.landmark || undefined,
         },
         {
-          name: norm.assetName || 'Air Conditioner',
+          name: norm.assetName || defaultAssetLabel,
         },
         {
-          serviceName: 'AC Periodic General Service',
+          serviceName: norm.serviceName || defaultServiceName,
           lastServiceDate: norm.lastServiceDate || '',
           nextDueDate: norm.nextDueDate,
-          intervalMonths: 6,
-          serviceAmount: norm.serviceAmount || 1200,
+          intervalMonths: defaultInterval,
+          serviceAmount: norm.serviceAmount || defaultAmount,
           followUpStatus: 'NOT_CONTACTED',
         }
       );
@@ -740,13 +798,14 @@ export async function toggleServiceTypeStatusInDb(businessId: string, id: string
 }
 
 /**
- * Update message template.
+ * Update an existing message template in Supabase.
  */
 export async function updateMessageTemplateInDb(businessId: string, template: WhatsAppTemplate) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('message_templates')
     .update({
+      name: template.name.trim(),
       message_body: template.templateText,
       updated_at: new Date().toISOString(),
     })
@@ -760,16 +819,142 @@ export async function updateMessageTemplateInDb(businessId: string, template: Wh
 }
 
 /**
+ * Create a new message template in Supabase scoped to the active workspace.
+ */
+export async function createMessageTemplateInDb(
+  businessId: string,
+  template: Omit<WhatsAppTemplate, 'id'>
+): Promise<WhatsAppTemplate> {
+  const supabase = createClient();
+  let insertType = template.type;
+
+  let { data, error } = await supabase
+    .from('message_templates')
+    .insert({
+      business_id: businessId,
+      name: template.name.trim(),
+      template_type: insertType,
+      message_body: template.templateText,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  // If the remote check constraint rejects 'CUSTOM' before migration 20261021 is applied,
+  // provide a clear error message without silently saving as DUE_SOON.
+  if (error && error.code === '23514' && insertType === 'CUSTOM') {
+    throw new Error(
+      'Custom template support requires database migration 20261021_allow_custom_template_type.sql. Please run this migration in your Supabase SQL Editor.'
+    );
+  }
+
+  if (error) throw error;
+  if (!data) throw new Error('Failed to create message template in database.');
+
+  return {
+    id: data.id,
+    name: data.name,
+    type: data.template_type,
+    templateText: data.message_body,
+  };
+}
+
+/**
+ * Delete a message template from Supabase scoped to the active workspace.
+ */
+export async function deleteMessageTemplateInDb(businessId: string, templateId: string): Promise<void> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('message_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new Error('Message template was not found in this workspace or cannot be deleted.');
+  }
+}
+
+/**
+ * Restores category default templates for the workspace, updating the 5 core lifecycle templates
+ * while safely preserving any user-created custom templates.
+ */
+export async function restoreDefaultMessageTemplatesInDb(
+  businessId: string,
+  category?: string | null
+): Promise<WhatsAppTemplate[]> {
+  const supabase = createClient();
+  const starterPresets = getInitialTemplatesForCategory(category);
+
+  // Fetch current workspace templates
+  const { data: existing, error: fetchErr } = await supabase
+    .from('message_templates')
+    .select('*')
+    .eq('business_id', businessId);
+
+  if (fetchErr) throw fetchErr;
+
+  const currentList = existing || [];
+
+  for (const starter of starterPresets) {
+    const found = currentList.find((t) => t.template_type === starter.type);
+    if (found) {
+      const { error: updErr } = await supabase
+        .from('message_templates')
+        .update({
+          name: starter.name,
+          message_body: starter.templateText,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', found.id)
+        .eq('business_id', businessId);
+      if (updErr) throw updErr;
+    } else {
+      const { error: insErr } = await supabase
+        .from('message_templates')
+        .insert({
+          business_id: businessId,
+          name: starter.name,
+          template_type: starter.type,
+          message_body: starter.templateText,
+          is_active: true,
+        });
+      if (insErr) throw insErr;
+    }
+  }
+
+  // Fetch and return the updated workspace list
+  const { data: refreshed, error: refErr } = await supabase
+    .from('message_templates')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: true });
+
+  if (refErr) throw refErr;
+
+  return (refreshed || []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    type: t.template_type,
+    templateText: t.message_body,
+  }));
+}
+
+/**
  * Update business profile settings.
  */
 export async function updateBusinessInDb(businessId: string, biz: BusinessProfile) {
   const supabase = createClient();
+  const canonicalCategory = getCanonicalCategoryLabel(biz.industry);
   const { data, error } = await supabase
     .from('businesses')
     .update({
       name: biz.name.trim(),
       phone: biz.phone?.trim() || null,
-      business_type: biz.industry,
+      business_type: canonicalCategory,
       address: biz.city,
       currency: biz.currency,
       default_interval_months: biz.defaultIntervalMonths,
@@ -794,6 +979,9 @@ export function mapDbCustomerToApp(c: DbCustomer): Customer {
     email: c.email || undefined,
     address: c.address || '',
     locality: c.locality || undefined,
+    city: c.city || undefined,
+    pincode: c.pincode || undefined,
+    landmark: c.landmark || undefined,
     notes: c.notes || undefined,
     createdAt: c.created_at ? c.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
   };

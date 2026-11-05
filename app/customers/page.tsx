@@ -10,7 +10,33 @@ import { UrgencyBadge, StatusBadge } from '@/components/Badge';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { CompleteServiceModal } from '@/components/CompleteServiceModal';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
-import { Search, UserPlus, Phone, MessageSquare, Trash2, CheckCircle2, ChevronRight, AlertCircle, Plus, Upload, Users } from 'lucide-react';
+import { CustomerDetailsModal } from '@/components/CustomerDetailsModal';
+import {
+  formatCustomerAddress,
+  formatAddressSummary,
+  hasSufficientAddress,
+  getGoogleMapsSearchUrl,
+  copyToClipboard,
+} from '@/lib/address-utils';
+import {
+  Search,
+  UserPlus,
+  Phone,
+  MessageSquare,
+  Trash2,
+  CheckCircle2,
+  ChevronRight,
+  AlertCircle,
+  Plus,
+  Upload,
+  Users,
+  Copy,
+  Check,
+  Navigation,
+  ExternalLink,
+  Eye,
+  MapPin,
+} from 'lucide-react';
 import { Customer, Asset, ServiceRecord } from '@/lib/types';
 
 export default function CustomersPage() {
@@ -19,6 +45,32 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Address copy feedback state
+  const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
+  const [copyRowNotice, setCopyRowNotice] = useState<string | null>(null);
+
+  const handleRowCopyAddress = async (cust: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const addressText = formatCustomerAddress(cust);
+    if (!addressText) {
+      setCopyRowNotice(`No address saved for ${cust.name}`);
+      setTimeout(() => setCopyRowNotice(null), 2500);
+      return;
+    }
+    const res = await copyToClipboard(addressText);
+    if (res.success) {
+      setCopiedRowId(cust.id);
+      setCopyRowNotice(`Address copied for ${cust.name}!`);
+      setTimeout(() => {
+        setCopiedRowId(null);
+        setCopyRowNotice(null);
+      }, 2500);
+    } else {
+      setCopyRowNotice(res.error || 'Failed to copy address');
+      setTimeout(() => setCopyRowNotice(null), 3000);
+    }
+  };
 
   // WhatsApp & Complete Modals state
   const [activeWhatsApp, setActiveWhatsApp] = useState<{ customer: Customer; asset?: Asset; service?: ServiceRecord } | null>(null);
@@ -44,6 +96,9 @@ export default function CustomersPage() {
       c.name.toLowerCase().includes(q) ||
       c.phone.includes(q) ||
       c.locality?.toLowerCase().includes(q) ||
+      c.city?.toLowerCase().includes(q) ||
+      c.pincode?.toLowerCase().includes(q) ||
+      c.landmark?.toLowerCase().includes(q) ||
       c.address?.toLowerCase().includes(q) ||
       custAssets.some(a => a.name.toLowerCase().includes(q))
     );
@@ -97,13 +152,18 @@ export default function CustomersPage() {
                     className="p-4 sm:px-6 sm:py-4.5 hover:bg-gray-50/80 transition-colors flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 items-start sm:items-center"
                   >
                     {/* Customer */}
-                    <div className="col-span-4 min-w-0">
+                    <div
+                      className="col-span-4 min-w-0 cursor-pointer group/cust"
+                      onClick={() => setSelectedCustomer(cust)}
+                    >
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-gray-900 truncate">{cust.name}</h4>
+                        <h4 className="text-sm font-semibold text-gray-900 group-hover/cust:text-blue-600 transition-colors truncate">
+                          {cust.name}
+                        </h4>
                         {latestService && <StatusBadge status={latestService.followUpStatus} />}
                       </div>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {cust.phone} • {cust.locality || cust.address || 'Kochi'}
+                      <p className="text-xs text-gray-500 truncate mt-0.5" title={formatCustomerAddress(cust)}>
+                        {cust.phone} • {formatAddressSummary(cust) || cust.address || 'No address'}
                       </p>
                     </div>
 
@@ -141,6 +201,51 @@ export default function CustomersPage() {
 
                     {/* Actions */}
                     <div className="col-span-2 flex items-center justify-end gap-1.5 w-full sm:w-auto">
+                      {/* Copy Address */}
+                      <button
+                        onClick={(e) => handleRowCopyAddress(cust, e)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                        title={formatCustomerAddress(cust) ? `Copy address: ${formatCustomerAddress(cust)}` : 'No address saved for customer'}
+                        disabled={!formatCustomerAddress(cust)}
+                      >
+                        {copiedRowId === cust.id ? (
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      {/* Open in Maps */}
+                      {hasSufficientAddress(cust) ? (
+                        <a
+                          href={getGoogleMapsSearchUrl(cust)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                          title={`Open "${formatCustomerAddress(cust)}" in Google Maps`}
+                        >
+                          <Navigation className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="p-1.5 rounded-lg text-gray-300 cursor-not-allowed"
+                          title="Add address details to open in Google Maps"
+                        >
+                          <Navigation className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* View / Edit Details */}
+                      <button
+                        onClick={() => setSelectedCustomer(cust)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="View & Edit Customer Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+
                       {latestService && (
                         <button
                           onClick={() => setActiveWhatsApp({ customer: cust, asset: primaryAsset, service: latestService })}
@@ -250,6 +355,22 @@ export default function CustomersPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
       />
+
+      {/* Customer Details & Edit Modal */}
+      <CustomerDetailsModal
+        isOpen={Boolean(selectedCustomer)}
+        onClose={() => setSelectedCustomer(null)}
+        customer={selectedCustomer}
+        onCustomerUpdated={(updated) => setSelectedCustomer(updated)}
+      />
+
+      {/* Floating Copy Feedback Toast */}
+      {copyRowNotice && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-semibold shadow-2xl animate-fade-in border border-gray-700">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span>{copyRowNotice}</span>
+        </div>
+      )}
     </AppShell>
   );
 }
