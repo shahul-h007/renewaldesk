@@ -140,7 +140,7 @@ export default function PricingPage() {
       const options: any = {
         key: session.keyId,
         name: 'RenewalDesk',
-        description: `${plan.name} Plan — Up to ${plan.maxActiveCustomers} active customers`,
+        description: `${plan.name} Plan â€” Up to ${plan.maxActiveCustomers} active customers`,
         image: '/brand/renewaldesk-logo.svg',
         prefill: {
           name: authBiz.name || '',
@@ -319,7 +319,7 @@ export default function PricingPage() {
                 </div>
               )}
             </div>
-            <button onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-700 text-sm font-bold">×</button>
+            <button onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-700 text-sm font-bold">Ã—</button>
           </div>
         )}
 
@@ -343,17 +343,17 @@ export default function PricingPage() {
             Simple, Transparent Capacity-Based Pricing
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto">
-            Every plan includes RenewalDesk’s complete feature set—WhatsApp click-to-chat links, automatic service recurrence calculation, multi-appliance customer profiles, and Excel imports. Choose the active-customer capacity that fits your operation.
+            Every plan includes RenewalDeskâ€™s complete feature setâ€”WhatsApp click-to-chat links, automatic service recurrence calculation, multi-appliance customer profiles, and Excel imports. Choose the active-customer capacity that fits your operation.
           </p>
         </div>
 
         {/* 14-Day Free Trial Tier Card */}
-        <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-amber-50/70 p-6 sm:p-8 shadow-xs">
+        <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-amber-50/70 p-4 sm:p-8 shadow-xs">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
                 <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>14-Day Free Trial — ₹0</span>
+                <span>14-Day Free Trial â€” â‚¹0</span>
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                 Try RenewalDesk Free for 14 Days
@@ -443,12 +443,12 @@ export default function PricingPage() {
               >
                 {/* Badges */}
                 {isRecommended && (
-                  <span className="absolute -top-3 left-6 bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
+                  <span className="absolute -top-3 left-4 max-w-[calc(100%-2rem)] truncate bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
                     Recommended Starting Option
                   </span>
                 )}
                 {isLifetime && (
-                  <span className="absolute -top-3 left-6 bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
+                  <span className="absolute -top-3 left-4 max-w-[calc(100%-2rem)] truncate bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
                     Limited Launch Offer ({remainingLifetimeSlots} of 25 left)
                   </span>
                 )}
@@ -470,7 +470,7 @@ export default function PricingPage() {
                   <div className="pt-2 pb-1 border-b border-slate-100">
                     <div className="flex items-baseline gap-1">
                       <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight font-mono">
-                        ₹{plan.priceINR}
+                        â‚¹{plan.priceINR}
                       </span>
                       <span className="text-xs font-semibold text-slate-500">
                         {isLifetime ? 'one-time payment' : '/ month'}
@@ -553,7 +553,7 @@ export default function PricingPage() {
                       <span>Sold Out (25/25 Claimed)</span>
                     ) : (
                       <>
-                        <span>{isLifetime ? 'Claim Lifetime Access (₹599)' : `Subscribe to ${plan.name}`}</span>
+                        <span>{isLifetime ? 'Claim Lifetime Access (â‚¹599)' : `Subscribe to ${plan.name}`}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </>
                     )}
@@ -582,7 +582,7 @@ export default function PricingPage() {
             <div>
               <h3 className="font-bold text-slate-800 mb-1">Founding Lifetime Offer Terms</h3>
               <p>
-                The Founding Lifetime plan is a one-time payment of ₹599. It grants a maximum capacity of 100 active customers to one business workspace with no recurring RenewalDesk subscription fees for as long as the service remains operational. It does not promise that the service or company will operate indefinitely.
+                The Founding Lifetime plan is a one-time payment of â‚¹599. It grants a maximum capacity of 100 active customers to one business workspace with no recurring RenewalDesk subscription fees for as long as the service remains operational. It does not promise that the service or company will operate indefinitely.
               </p>
             </div>
 
@@ -606,7 +606,7 @@ export default function PricingPage() {
       {/* Footer */}
       <footer className="mt-auto py-8 bg-slate-900 text-slate-400 text-xs border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <BrandLogo variant="mark" size="sm" href="/" invertText subtitle="— Transparent Pricing" />
+          <BrandLogo variant="mark" size="sm" href="/" invertText subtitle="â€” Transparent Pricing" />
           <div className="flex flex-wrap gap-4">
             <Link href="/" className="hover:text-white">Home</Link>
             <Link href="/pricing" className="hover:text-white text-white font-semibold">Pricing</Link>

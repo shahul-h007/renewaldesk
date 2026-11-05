@@ -220,21 +220,21 @@ export default function DashboardPage() {
             tabIndex={0}
             onClick={() => setActiveTab('OVERDUE')}
             onKeyDown={(e) => e.key === 'Enter' && setActiveTab('OVERDUE')}
-            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none min-w-0 ${
               activeTab === 'OVERDUE'
                 ? 'border-red-500 ring-2 ring-red-500/20'
                 : 'border-gray-200/80 hover:border-red-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Overdue</span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider truncate">Overdue</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600 shrink-0">
                 <AlertCircle className="w-4 h-4" />
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1 sm:gap-2">
               <span className="text-2xl sm:text-3xl font-black text-gray-900">{overdueServices.length}</span>
-              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 truncate max-w-full">
                 Action Required
               </span>
             </div>
@@ -249,21 +249,21 @@ export default function DashboardPage() {
             tabIndex={0}
             onClick={() => setActiveTab('TODAY')}
             onKeyDown={(e) => e.key === 'Enter' && setActiveTab('TODAY')}
-            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none min-w-0 ${
               activeTab === 'TODAY'
                 ? 'border-orange-500 ring-2 ring-orange-500/20'
                 : 'border-gray-200/80 hover:border-orange-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Due Today</span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider truncate">Due Today</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shrink-0">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1 sm:gap-2">
               <span className="text-2xl sm:text-3xl font-black text-gray-900">{todayServices.length}</span>
-              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 truncate max-w-full">
                 Call Target
               </span>
             </div>
@@ -278,21 +278,21 @@ export default function DashboardPage() {
             tabIndex={0}
             onClick={() => setActiveTab('WEEK')}
             onKeyDown={(e) => e.key === 'Enter' && setActiveTab('WEEK')}
-            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none min-w-0 ${
               activeTab === 'WEEK'
                 ? 'border-amber-500 ring-2 ring-amber-500/20'
                 : 'border-gray-200/80 hover:border-amber-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">This Week</span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider truncate">This Week</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                 <Calendar className="w-4 h-4" />
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1 sm:gap-2">
               <span className="text-2xl sm:text-3xl font-black text-gray-900">{weekServices.length}</span>
-              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 truncate max-w-full">
                 Upcoming
               </span>
             </div>
@@ -307,19 +307,19 @@ export default function DashboardPage() {
             tabIndex={0}
             onClick={() => setActiveTab('COMPLETED')}
             onKeyDown={(e) => e.key === 'Enter' && setActiveTab('COMPLETED')}
-            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none ${
+            className={`p-3.5 sm:p-5 rounded-2xl bg-white border cursor-pointer transition-all shadow-2xs select-none min-w-0 ${
               activeTab === 'COMPLETED'
                 ? 'border-emerald-500 ring-2 ring-emerald-500/20'
                 : 'border-gray-200/80 hover:border-emerald-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Completed</span>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider truncate">Completed</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-1 sm:gap-2">
               <span suppressHydrationWarning className="text-xl sm:text-2xl font-black text-emerald-700 truncate">
                 {business.currency}{formatINR(recoveredRevenue)}
               </span>

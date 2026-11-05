@@ -29,7 +29,7 @@ export function Tabs({
 }: TabsProps) {
   if (variant === 'underline') {
     return (
-      <div className={cn('border-b border-gray-200 overflow-x-auto no-scrollbar', className)}>
+      <div className={cn('w-full max-w-full border-b border-gray-200 overflow-x-auto no-scrollbar', className)}>
         <nav
           className="flex space-x-6 min-w-max px-1"
           role="tablist"
@@ -85,7 +85,7 @@ export function Tabs({
 
   // Default 'pill' segmented control style
   return (
-    <div className={cn('overflow-x-auto no-scrollbar py-1', className)}>
+    <div className={cn('w-full max-w-full overflow-x-auto no-scrollbar py-1', className)}>
       <div
         role="tablist"
         aria-label={ariaLabel}

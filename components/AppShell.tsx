@@ -69,7 +69,7 @@ export function AppShell({ title, subtitle, headerActions, children }: AppShellP
           </div>
         )}
 
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
           {children}
         </main>
       </div>

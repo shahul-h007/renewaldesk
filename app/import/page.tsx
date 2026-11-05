@@ -308,7 +308,7 @@ export default function ImportPage() {
               const isPassed = step > s.num;
               const isCurrent = step === s.num;
               return (
-                <div key={s.num} className="flex flex-col sm:flex-row items-center sm:gap-3 text-center sm:text-left">
+                <div key={s.num} className="flex flex-col sm:flex-row items-center sm:gap-3 text-center sm:text-left min-w-0">
                   <div
                     className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
                       isPassed
@@ -844,7 +844,7 @@ export default function ImportPage() {
 
               {/* Preview Table of Rows */}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <div className="px-3.5 sm:px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-bold text-xs text-gray-800">
                     Preview of Customer Records ({Math.min(6, validRows.length)} of {validRows.length})
                   </span>

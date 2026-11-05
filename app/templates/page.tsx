@@ -29,6 +29,7 @@ import {
   Info,
   X,
   Sparkles,
+  MoreVertical,
 } from 'lucide-react';
 import { IPhone17ProMockup } from '@/components/IPhone17ProMockup';
 import { AiTemplatePromptModal } from '@/components/AiTemplatePromptModal';
@@ -71,6 +72,7 @@ export default function TemplatesPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastActiveIdRef = useRef<string | null>(null);
@@ -295,31 +297,91 @@ export default function TemplatesPage() {
       title="WhatsApp Message Templates"
       subtitle={`Configure industry-specific message templates for ${categoryMeta.label}. All outreach is manually initiated by you via official 1-click WhatsApp links.`}
       headerActions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAiModalOpen(true)}
-            leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
-          >
-            Generate with AI
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsRestoreModalOpen(true)}
-            leftIcon={<RotateCcw className="w-3.5 h-3.5 text-gray-500" />}
-          >
-            Restore Defaults
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setIsAddModalOpen(true)}
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
-            New Template
-          </Button>
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Desktop full buttons (sm and up) */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAiModalOpen(true)}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
+            >
+              Generate with AI
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRestoreModalOpen(true)}
+              leftIcon={<RotateCcw className="w-3.5 h-3.5 text-gray-500" />}
+            >
+              Restore Defaults
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsAddModalOpen(true)}
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              New Template
+            </Button>
+          </div>
+
+          {/* Mobile responsive buttons (< sm) */}
+          <div className="flex sm:hidden items-center gap-1.5 relative">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsAddModalOpen(true)}
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              New
+            </Button>
+
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMobileActionsOpen((prev) => !prev)}
+                aria-label="More template actions"
+                className="px-2 min-w-[36px]"
+              >
+                <MoreVertical className="w-4 h-4 text-gray-600" />
+              </Button>
+
+              {isMobileActionsOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setIsMobileActionsOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl bg-white border border-gray-200 shadow-lg py-1.5 z-40 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileActionsOpen(false);
+                        setIsAiModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2 text-gray-700 hover:bg-gray-50 font-medium"
+                    >
+                      <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>Generate with AI</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileActionsOpen(false);
+                        setIsRestoreModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2 text-gray-700 hover:bg-gray-50 font-medium border-t border-gray-100"
+                    >
+                      <RotateCcw className="w-4 h-4 text-gray-500 shrink-0" />
+                      <span>Restore Defaults</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       }
     >
@@ -343,18 +405,18 @@ export default function TemplatesPage() {
         {/* Clean 2-column layout without nested scrollbars */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: Template Selector & Editor (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-6 min-w-0">
             <Card>
-              <CardContent className="p-5 sm:p-6 space-y-6">
+              <CardContent className="p-4 sm:p-6 space-y-6">
                 {/* Template Selector Bar */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Select Template
                     </label>
-                    <Badge variant="neutral">{categoryMeta.label}</Badge>
+                    <Badge variant="neutral" className="max-w-full truncate">{categoryMeta.label}</Badge>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {templates.map((tpl) => {
                       const isSelected = activeTemplateId === tpl.id;
                       return (
@@ -362,16 +424,16 @@ export default function TemplatesPage() {
                           key={tpl.id}
                           type="button"
                           onClick={() => handleSelectTemplate(tpl)}
-                          className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 min-h-[38px] ${
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 min-h-[38px] max-w-full ${
                             isSelected
                               ? 'bg-blue-600 text-white shadow-xs'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          <span>{tpl.name}</span>
+                          <span className="truncate max-w-[180px] sm:max-w-none">{tpl.name}</span>
                           {tpl.type === 'CUSTOM' && (
                             <span
-                              className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono ${
+                              className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono shrink-0 ${
                                 isSelected
                                   ? 'bg-blue-700 text-blue-100'
                                   : 'bg-gray-200 text-gray-600'
@@ -389,7 +451,7 @@ export default function TemplatesPage() {
                 {/* Template Title & Purpose Banner */}
                 {activeTemplate && (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0 w-full">
                       <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                         Template Name
                       </label>
@@ -402,7 +464,7 @@ export default function TemplatesPage() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-center">
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       <Badge variant="neutral">
                         Type: {activeTemplate.type}
                       </Badge>
@@ -438,7 +500,7 @@ export default function TemplatesPage() {
 
                 {/* Dynamic Placeholders Pills */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Insert Dynamic Placeholders
                     </label>
@@ -453,13 +515,13 @@ export default function TemplatesPage() {
                           type="button"
                           onClick={() => handleInsertTag(item.tag)}
                           title={`${item.label}: ${item.description}`}
-                          className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-colors min-h-[30px] ${
+                          className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-colors min-h-[30px] max-w-full ${
                             isUsed
                               ? 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
                               : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-blue-700 border-gray-200'
                           }`}
                         >
-                          {item.tag}
+                          <span className="truncate">{item.tag}</span>
                         </button>
                       );
                     })}
@@ -485,7 +547,7 @@ export default function TemplatesPage() {
                     rows={8}
                     value={editedText}
                     onChange={(e) => setEditedText(e.target.value)}
-                    className="w-full p-3.5 text-xs sm:text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none leading-relaxed font-sans min-h-[180px]"
+                    className="w-full max-w-full p-3.5 text-xs sm:text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none leading-relaxed font-sans min-h-[180px] box-border"
                     placeholder="Write your WhatsApp message template here..."
                   />
                 </div>
@@ -504,6 +566,7 @@ export default function TemplatesPage() {
                   <Button
                     variant="primary"
                     onClick={handleSave}
+                    className="w-full sm:w-auto"
                     leftIcon={savedSuccess ? <Check className="w-4 h-4 text-emerald-200" /> : <Save className="w-4 h-4" />}
                   >
                     {savedSuccess ? 'Saved!' : 'Save Template'}
@@ -514,18 +577,18 @@ export default function TemplatesPage() {
           </div>
 
           {/* Right Column: Simulated WhatsApp Device Preview (5 cols, sticky on desktop) */}
-          <div className="lg:col-span-5 lg:sticky lg:top-6 space-y-4">
+          <div className="lg:col-span-5 lg:sticky lg:top-6 space-y-4 min-w-0">
             <Card>
-              <CardContent className="p-5 sm:p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardContent className="p-4 sm:p-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <Smartphone className="w-4 h-4 text-emerald-600" />
                     <span>Interactive Device Preview</span>
                   </div>
 
                   {/* Customer Preview Selector */}
-                  <div className="flex items-center gap-1.5">
-                    <label htmlFor="preview-customer-select" className="text-[11px] text-gray-500 font-medium">
+                  <div className="flex items-center gap-1.5 max-w-full min-w-0">
+                    <label htmlFor="preview-customer-select" className="text-[11px] text-gray-500 font-medium shrink-0">
                       Preview:
                     </label>
                     <select
@@ -533,7 +596,7 @@ export default function TemplatesPage() {
                       aria-label="Select preview customer"
                       value={selectedCustomerId}
                       onChange={(e) => setSelectedCustomerId(e.target.value)}
-                      className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-gray-700 font-medium hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[150px] truncate"
+                      className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-gray-700 font-medium hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[140px] truncate"
                     >
                       <option value="sample">Sample: {sampleData.customer_name}</option>
                       {customers.map((c) => (
@@ -547,14 +610,16 @@ export default function TemplatesPage() {
                 </div>
 
                 {/* iPhone 17 Pro Hardware Mockup */}
-                <IPhone17ProMockup
-                  customerName={activeCustomerName}
-                  customerPhone={activeCustomerPhone}
-                  businessName={business.name}
-                  messageText={livePreview}
-                  timeString="10:14 AM"
-                  onlineStatus="Online"
-                />
+                <div className="w-full max-w-[290px] mx-auto overflow-hidden">
+                  <IPhone17ProMockup
+                    customerName={activeCustomerName}
+                    customerPhone={activeCustomerPhone}
+                    businessName={business.name}
+                    messageText={livePreview}
+                    timeString="10:14 AM"
+                    onlineStatus="Online"
+                  />
+                </div>
 
                 <div className="text-[11px] text-center text-gray-500 space-y-1">
                   <p>

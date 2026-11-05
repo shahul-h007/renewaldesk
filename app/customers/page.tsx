@@ -596,16 +596,16 @@ export default function CustomersPage() {
                       key={cust.id}
                       className="p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/60 transition-colors"
                     >
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-gray-900 text-xs sm:text-sm">
+                          <h4 className="font-bold text-gray-900 text-xs sm:text-sm truncate">
                             {cust.name}
                           </h4>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
                             Archived
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
                           {cust.phone} {addressSummary && `• ${addressSummary}`}
                         </p>
                       </div>

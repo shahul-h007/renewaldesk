@@ -87,7 +87,7 @@ export default function SettingsPage() {
         subtitle="Manage shop profile, service catalog, templates, and subscription."
       >
         <div className="max-w-4xl space-y-6 animate-pulse">
-          <div className="h-12 w-96 bg-gray-200 rounded-xl" />
+          <div className="h-12 w-full max-w-sm bg-gray-200 rounded-xl" />
           <div className="h-96 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-4" />
         </div>
       </AppShell>
@@ -348,14 +348,14 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <CardTitle>Subscription & Workspace Capacity</CardTitle>
                     <CardDescription>
                       Manage your plan, check active customer limits, or activate founding lifetime access.
                     </CardDescription>
                   </div>
-                  <Badge variant="purple">Razorpay Secure</Badge>
+                  <Badge variant="purple" className="shrink-0">Razorpay Secure</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -446,13 +446,13 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Import CSV Quick Link */}
-                <div className="pt-1 flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
-                  <div>
+                <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="min-w-0">
                     <p className="font-bold text-xs text-gray-900">Need to import an existing customer ledger?</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">Upload any Excel/CSV sheet with names and phone numbers.</p>
                   </div>
-                  <Link href="/import">
-                    <Button variant="outline" size="sm" leftIcon={Upload}>
+                  <Link href="/import" className="shrink-0">
+                    <Button variant="outline" size="sm" leftIcon={Upload} className="w-full sm:w-auto">
                       Import CSV
                     </Button>
                   </Link>

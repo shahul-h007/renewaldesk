@@ -149,12 +149,12 @@ export default function LandingPage() {
         {/* Subtle decorative dot pattern */}
         <div className="absolute inset-0 bg-dot-grid opacity-35 pointer-events-none" />
 
-        <div className="relative z-10 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold shadow-2xs">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-          <span>Built for AC, RO Water Purifier & Appliance Service Businesses</span>
+        <div className="relative z-10 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold shadow-2xs max-w-[calc(100vw-2rem)] sm:max-w-full">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <span className="truncate min-w-0">Built for AC, RO Water Purifier & Appliance Service Businesses</span>
         </div>
 
-        <div className="relative z-10 max-w-3xl mx-auto space-y-4">
+        <div className="relative z-10 w-full max-w-3xl mx-auto space-y-4 min-w-0">
           <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.1]">
             Stop losing customers you <span className="text-blue-600">already earned</span>.
           </h1>
@@ -188,50 +188,50 @@ export default function LandingPage() {
         </div>
 
         {/* Live UI Product Mockup Window */}
-        <div className="relative z-10 pt-8 max-w-4xl mx-auto">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden text-left ring-1 ring-slate-900/5">
+        <div className="relative z-10 pt-8 w-full max-w-4xl mx-auto min-w-0">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden text-left ring-1 ring-slate-900/5 w-full min-w-0">
             {/* Mock Browser Header Bar */}
-            <div className="px-5 py-3.5 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-red-400/80" />
-                <span className="w-3 h-3 rounded-full bg-amber-400/80" />
-                <span className="w-3 h-3 rounded-full bg-emerald-400/80" />
-                <span className="ml-3 text-[11px] font-mono text-slate-500 bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
+            <div className="px-3.5 sm:px-5 py-3.5 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 w-full min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-3 h-3 rounded-full bg-red-400/80 shrink-0" />
+                <span className="w-3 h-3 rounded-full bg-amber-400/80 shrink-0" />
+                <span className="w-3 h-3 rounded-full bg-emerald-400/80 shrink-0" />
+                <span className="hidden sm:inline ml-3 text-[11px] font-mono text-slate-500 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 truncate">
                   app.renewaldesk.com/dashboard
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-bold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full uppercase">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full uppercase">
                   Sample Data Preview
                 </span>
               </div>
             </div>
 
             {/* Mock Dashboard Queue Content */}
-            <div className="p-6 space-y-5">
+            <div className="p-3.5 sm:p-6 space-y-5 w-full min-w-0 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-base font-bold text-slate-900">Today&apos;s Follow-up Queue</h3>
                   <p className="text-xs text-slate-500">18 customers need maintenance attention right now</p>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-bold">🔴 7 Overdue</span>
                   <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold">🟠 11 Due This Week</span>
                 </div>
               </div>
 
               {/* Sample Customer Rows */}
-              <div className="space-y-2.5">
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900">Mohammed Faisal</span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">5 days overdue</span>
+              <div className="space-y-2.5 w-full max-w-full overflow-hidden">
+                <div className="p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors w-full max-w-full overflow-hidden">
+                  <div className="min-w-0 w-full overflow-hidden">
+                    <div className="flex items-center gap-2 max-w-full">
+                      <span className="text-sm font-bold text-slate-900 truncate min-w-0">Mohammed Faisal</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold shrink-0">5 days overdue</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">+91 98471 23456 • Daikin Split AC (1.5T) • Edappally, Kochi</p>
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 block w-full">+91 98471 23456 • Daikin Split AC (1.5T) • Edappally, Kochi</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
                     <span className="text-xs font-bold text-slate-900 mr-2">₹1,200</span>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#25D366] shadow-2xs">
                       <MessageSquare className="w-3.5 h-3.5" />
@@ -240,16 +240,16 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900">Priya Nambiar</span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold">Due Today</span>
+                <div className="p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-colors w-full max-w-full overflow-hidden">
+                  <div className="min-w-0 w-full overflow-hidden">
+                    <div className="flex items-center gap-2 max-w-full">
+                      <span className="text-sm font-bold text-slate-900 truncate min-w-0">Priya Nambiar</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold shrink-0">Due Today</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">+91 98472 34567 • Voltas Window AC (1.0T) • Kakkanad, Kochi</p>
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 block w-full">+91 98472 34567 • Voltas Window AC (1.0T) • Kakkanad, Kochi</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
                     <span className="text-xs font-bold text-slate-900 mr-2">₹1,200</span>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#25D366] shadow-2xs">
                       <MessageSquare className="w-3.5 h-3.5" />

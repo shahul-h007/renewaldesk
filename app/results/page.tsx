@@ -91,23 +91,25 @@ export default function ResultsPage() {
             <span className="text-xs text-gray-500 font-mono hidden md:inline">({dateSpanText})</span>
           </div>
 
-          <div className="inline-flex p-1 bg-gray-100 rounded-xl w-full sm:w-auto">
-            {periodOptions.map((opt) => {
-              const active = selectedPeriod === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => setSelectedPeriod(opt.id)}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-lg transition-all min-h-[36px] ${
-                    active
-                      ? 'bg-white text-gray-900 shadow-xs font-semibold'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+          <div className="w-full sm:w-auto overflow-x-auto no-scrollbar py-0.5">
+            <div className="inline-flex p-1 bg-gray-100 rounded-xl min-w-max">
+              {periodOptions.map((opt) => {
+                const active = selectedPeriod === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setSelectedPeriod(opt.id)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all min-h-[36px] whitespace-nowrap ${
+                      active
+                        ? 'bg-white text-gray-900 shadow-xs font-semibold'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

@@ -153,7 +153,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
-        <div className="bg-white py-8 px-6 shadow-sm border border-gray-200 rounded-2xl sm:px-10">
+        <div className="bg-white py-6 px-4 shadow-sm border border-gray-200 rounded-2xl sm:py-8 sm:px-10">
           {authError && (
             <div role="alert" className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
               <div className="flex items-start gap-2">

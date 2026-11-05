@@ -105,7 +105,7 @@ function SignUpForm() {
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-100/50 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top back navigation */}
-      <div className="w-full max-w-5xl mx-auto mb-6 relative z-10 flex items-center justify-between">
+      <div className="w-full max-w-5xl mx-auto mb-6 relative z-10 flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors py-1 px-2.5 rounded-lg hover:bg-white/80"

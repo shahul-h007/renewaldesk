@@ -99,13 +99,13 @@ export default function ServicesPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
               {/* Filter Tabs */}
-              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs font-medium">
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs font-medium overflow-x-auto no-scrollbar max-w-full">
                 <button
                   type="button"
                   onClick={() => setFilterTab('ALL')}
-                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] ${
+                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] whitespace-nowrap ${
                     filterTab === 'ALL'
                       ? 'bg-white text-gray-900 font-bold shadow-xs'
                       : 'text-gray-600 hover:text-gray-900'
@@ -116,7 +116,7 @@ export default function ServicesPage() {
                 <button
                   type="button"
                   onClick={() => setFilterTab('ACTIVE')}
-                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] ${
+                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] whitespace-nowrap ${
                     filterTab === 'ACTIVE'
                       ? 'bg-white text-emerald-800 font-bold shadow-xs'
                       : 'text-gray-600 hover:text-gray-900'
@@ -127,7 +127,7 @@ export default function ServicesPage() {
                 <button
                   type="button"
                   onClick={() => setFilterTab('INACTIVE')}
-                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] ${
+                  className={`px-3 py-1.5 rounded-lg transition-all min-h-[36px] whitespace-nowrap ${
                     filterTab === 'INACTIVE'
                       ? 'bg-white text-gray-700 font-bold shadow-xs'
                       : 'text-gray-600 hover:text-gray-900'
@@ -142,7 +142,7 @@ export default function ServicesPage() {
                 variant="primary"
                 size="sm"
                 onClick={handleOpenAdd}
-                className="sm:hidden"
+                className="sm:hidden shrink-0"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
               >
                 Add

@@ -26,8 +26,8 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-gray-200/80 px-3.5 sm:px-8 flex items-center justify-between sticky top-0 z-20">
-        <div className="min-w-0 pr-2 sm:pr-4">
+      <header className="min-h-16 h-auto py-2.5 sm:py-0 sm:h-16 bg-white border-b border-gray-200/80 px-3.5 sm:px-8 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-20">
+        <div className="min-w-0 pr-2 sm:pr-4 flex-1">
           <h1 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight leading-tight truncate">
             {title}
           </h1>
@@ -38,7 +38,7 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 max-w-full">
           {/* Developer diagnostics: ONLY rendered in development mode */}
           {isDev && (
             <div className="hidden xl:flex items-center">

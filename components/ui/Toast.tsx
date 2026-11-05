@@ -108,10 +108,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast, success, error, warning, info, undo, dismiss }}>
       {children}
       {/* Toast Render Container */}
-      <div
-        aria-live="polite"
-        className="fixed z-50 pointer-events-none inset-x-0 bottom-20 md:bottom-6 md:inset-x-auto md:right-6 flex flex-col items-center md:items-end gap-2 px-4 sm:px-0"
-      >
+      {toasts.length > 0 && (
+        <div
+          aria-live="polite"
+          className="fixed z-50 pointer-events-none inset-x-0 bottom-20 md:bottom-6 md:inset-x-auto md:right-6 flex flex-col items-center md:items-end gap-2 px-4 sm:px-0 max-w-full overflow-hidden"
+        >
         {toasts.map((toast) => {
           const icons = {
             success: <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />,
@@ -174,7 +175,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </ToastContext.Provider>
   );
 }

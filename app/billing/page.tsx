@@ -162,7 +162,7 @@ export default function BillingPage() {
 
         {/* Current Plan Overview Card */}
         <Card>
-          <CardContent className="p-6 sm:p-8 space-y-6">
+          <CardContent className="p-4 sm:p-8 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-6">
               <div>
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -271,7 +271,7 @@ export default function BillingPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-gray-500 pt-1">
                 <span>{usage.remainingCapacity.toLocaleString('en-IN')} available spots remaining</span>
                 <span>{usage.archivedCount.toLocaleString('en-IN')} archived records preserved</span>
               </div>
