@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
+import { Modal } from '@/components/ui/Modal';
 import {
   formatCustomerAddress,
   formatAddressSummary,
@@ -68,6 +69,7 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [moreMenuCustomerId, setMoreMenuCustomerId] = useState<string | null>(null);
+  const [customerToArchive, setCustomerToArchive] = useState<Customer | null>(null);
 
   // Archived customers state
   const [archivedCustomers, setArchivedCustomers] = useState<Customer[]>([]);
@@ -109,10 +111,27 @@ export default function CustomersPage() {
 
   const handleArchiveCustomer = (cust: Customer) => {
     setMoreMenuCustomerId(null);
-    if (confirm(`Archive customer ${cust.name}? They will be safely preserved in the Archived list.`)) {
-      deleteCustomer(cust.id);
-      toast.info(`${cust.name} was archived`, 'Customer Archived');
-    }
+    setCustomerToArchive(cust);
+  };
+
+  const confirmArchiveCustomer = async () => {
+    if (!customerToArchive) return;
+    const cust = customerToArchive;
+    setCustomerToArchive(null);
+    deleteCustomer(cust.id);
+
+    toast.show({
+      title: 'Customer Archived',
+      message: `${cust.name} was archived. Reminders paused.`,
+      type: 'info',
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          await handleRestoreCustomer(cust);
+        },
+      },
+    });
   };
 
   const handleRestoreCustomer = async (cust: Customer) => {
@@ -629,6 +648,42 @@ export default function CustomersPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
       />
+
+      {/* Archive Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(customerToArchive)}
+        onClose={() => setCustomerToArchive(null)}
+        title="Archive Customer"
+        icon={<Archive className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button
+              variant="outline"
+              onClick={() => setCustomerToArchive(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmArchiveCustomer}
+            >
+              Archive Customer
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 py-2 text-sm text-slate-600 dark:text-slate-300">
+          <p>
+            Are you sure you want to archive <strong className="text-slate-900 dark:text-white">{customerToArchive?.name}</strong>?
+          </p>
+          <ul className="list-disc pl-5 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <li>Active service schedules and upcoming reminders will be paused immediately.</li>
+            <li>This customer will no longer appear in your active Today queue.</li>
+            <li>All service history and contact records remain safe and can be restored anytime from the <strong className="text-slate-700 dark:text-slate-300">Archived</strong> tab.</li>
+          </ul>
+        </div>
+      </Modal>
 
       {/* Customer Details Modal */}
       <CustomerDetailsModal

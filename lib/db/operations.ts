@@ -367,6 +367,7 @@ export async function reactivateCustomerInDb(businessId: string, customerId: str
     throw new CustomerLimitReachedError(capacity.currentCount, capacity.maxCapacity, capacity.planName);
   }
 
+  // 1. Unarchive customer record
   const { data: reactivatedCustomer, error: custErr } = await supabase
     .from('customers')
     .update({
@@ -381,7 +382,41 @@ export async function reactivateCustomerInDb(businessId: string, customerId: str
   if (custErr) throw custErr;
   if (!reactivatedCustomer) throw new Error('Customer was not found in this workspace or cannot be reactivated.');
 
-  // Log activity
+  // 2. Restore their service schedules back to ACTIVE
+  const { data: restoredSchedules, error: schedErr } = await supabase
+    .from('service_schedules')
+    .update({
+      status: 'ACTIVE',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('customer_id', customerId)
+    .eq('business_id', businessId)
+    .select('id, next_due_date');
+
+  if (schedErr) throw schedErr;
+
+  // 3. Ensure corresponding reminder rows exist and are active for these schedules
+  if (restoredSchedules && restoredSchedules.length > 0) {
+    for (const sched of restoredSchedules) {
+      const { data: existingReminders } = await supabase
+        .from('reminders')
+        .select('id')
+        .eq('schedule_id', sched.id)
+        .eq('business_id', businessId);
+
+      if (!existingReminders || existingReminders.length === 0) {
+        await supabase.from('reminders').insert({
+          business_id: businessId,
+          customer_id: customerId,
+          schedule_id: sched.id,
+          due_date: sched.next_due_date,
+          status: 'NOT_CONTACTED',
+        });
+      }
+    }
+  }
+
+  // 4. Log activity
   await supabase.from('activities').insert({
     business_id: businessId,
     customer_id: customerId,

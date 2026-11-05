@@ -239,6 +239,11 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   const [isLoaded, setIsLoaded] = useState(() => !isConfigured);
   const [isLoadingDb, setIsLoadingDb] = useState(() => isConfigured);
   const [dbError, setDbError] = useState<string | null>(null);
+  const archivedPoolRef = useRef<{
+    customers: Customer[];
+    assets: Asset[];
+    services: ServiceRecord[];
+  }>({ customers: [], assets: [], services: [] });
 
   // Keep business header in sync with active auth tenant
   useEffect(() => {
@@ -541,6 +546,16 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
   };
 
   const deleteCustomer = (id: string) => {
+    const custToArchive = customers.find(c => c.id === id);
+    const astsToArchive = assets.filter(a => a.customerId === id);
+    const svcsToArchive = services.filter(s => s.customerId === id);
+
+    if (custToArchive) {
+      archivedPoolRef.current.customers.push(custToArchive);
+      archivedPoolRef.current.assets.push(...astsToArchive);
+      archivedPoolRef.current.services.push(...svcsToArchive);
+    }
+
     setCustomers(prev => prev.filter(c => c.id !== id));
     setAssets(prev => prev.filter(a => a.customerId !== id));
     setServices(prev => prev.filter(s => s.customerId !== id));
@@ -557,8 +572,19 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         await reactivateCustomerInDb(authBiz.id, id);
         await reloadFromDb();
         return { success: true };
+      } else {
+        // Local demo mode restore
+        const restoredCust = archivedPoolRef.current.customers.find(c => c.id === id);
+        if (restoredCust) {
+          setCustomers(prev => [restoredCust, ...prev]);
+          const restoredAsts = archivedPoolRef.current.assets.filter(a => a.customerId === id);
+          const restoredSvcs = archivedPoolRef.current.services.filter(s => s.customerId === id);
+          setAssets(prev => [...prev, ...restoredAsts]);
+          setServices(prev => [...prev, ...restoredSvcs]);
+          archivedPoolRef.current.customers = archivedPoolRef.current.customers.filter(c => c.id !== id);
+        }
+        return { success: true };
       }
-      return { success: true };
     } catch (err: any) {
       void reportMutationFailure('Reactivating customer', err);
       return { success: false, error: err?.message || 'Failed to restore customer' };
