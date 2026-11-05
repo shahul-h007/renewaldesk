@@ -47,6 +47,7 @@ export function OnboardingChecklist({
     serviceHistory,
     business,
     addCustomer,
+    hardDeleteCustomer,
     deleteCustomer,
   } = useRenewalDesk();
 
@@ -115,7 +116,11 @@ export function OnboardingChecklist({
     try {
       const sampleCustomers = customers.filter(isSampleCustomer);
       for (const cust of sampleCustomers) {
-        deleteCustomer(cust.id);
+        if (hardDeleteCustomer) {
+          await hardDeleteCustomer(cust.id);
+        } else {
+          deleteCustomer(cust.id);
+        }
       }
     } catch (err) {
       console.error('Failed to remove sample data:', err);

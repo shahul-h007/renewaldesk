@@ -11,6 +11,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Button } from './ui/Button';
 import { HelpTip } from './ui/HelpTip';
+import { useToast } from './ui/Toast';
 import {
   UserPlus,
   Clock,
@@ -31,6 +32,7 @@ interface AddCustomerModalProps {
 export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const { addCustomer, business, catalog, customers } = useRenewalDesk();
   const categoryMeta = getCategoryMetadata(business?.industry);
+  const toast = useToast();
 
   const sixMonthsAgo = () => {
     const d = new Date();
@@ -136,6 +138,7 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
       );
 
       if (res.success) {
+        const savedName = name.trim();
         setName('');
         setPhone('');
         setAddress('');
@@ -148,9 +151,10 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
         setLocation('');
         setShowMoreDetails(false);
         setSubmitError(null);
+        toast.success(`${savedName} added successfully.`);
         onClose();
       } else {
-        setSubmitError(res.error || 'Failed to save customer to cloud database.');
+        setSubmitError(res.error || 'Failed to save customer. Please check the details and try again.');
       }
     } catch (err: any) {
       setSubmitError(err?.message || 'An unexpected error occurred while saving.');

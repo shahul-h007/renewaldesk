@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/Toast';
 import {
   Building2,
   Save,
@@ -53,6 +54,8 @@ export default function SettingsPage() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const toast = useToast();
 
   // Form State
   const [name, setName] = useState(business.name);
@@ -107,10 +110,12 @@ export default function SettingsPage() {
       });
       setIndustry(canonicalIndustry);
       setSaved(true);
+      toast.success('Shop profile saved successfully!');
       setTimeout(() => setSaved(false), 2500);
     } catch (err: any) {
       console.error('Failed to update business settings:', err);
       setSaveError(err?.message || 'Failed to save settings. Please try again.');
+      toast.error(err?.message || 'Failed to save settings.');
     } finally {
       setIsSaving(false);
     }
@@ -478,19 +483,43 @@ export default function SettingsPage() {
                     <p className="font-semibold text-gray-700">Industry: {business.industry}</p>
                   </div>
                   {!isDatabaseMode && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (confirm('Reset to initial Kochi AC demo dataset?')) {
-                          resetDemoData();
-                          alert('Reset complete!');
-                        }
-                      }}
-                      leftIcon={RotateCcw}
-                    >
-                      Reset Sample Dataset
-                    </Button>
+                    <div className="pt-2">
+                      {showResetConfirm ? (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-2">
+                          <p className="font-bold text-amber-900">Reset local workspace to initial Kochi AC demo data?</p>
+                          <p className="text-amber-800 text-[11px]">This will replace your current demo customers with starter sample records.</p>
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => {
+                                resetDemoData();
+                                setShowResetConfirm(false);
+                                toast.success('Sample dataset reset successfully.');
+                              }}
+                            >
+                              Yes, Reset Dataset
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowResetConfirm(false)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowResetConfirm(true)}
+                          leftIcon={RotateCcw}
+                        >
+                          Reset Sample Dataset
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>

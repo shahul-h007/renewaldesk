@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
 import {
   CreditCard,
   Users,
@@ -26,6 +28,8 @@ export default function BillingPage() {
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activatingTrial, setActivatingTrial] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const toast = useToast();
 
   const fetchBillingData = useCallback(async () => {
     if (!authBiz?.id) return;
@@ -69,14 +73,7 @@ export default function BillingPage() {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    if (
-      !confirm(
-        'Are you sure you want to cancel your monthly subscription? You will retain access until the end of your paid billing cycle.'
-      )
-    ) {
-      return;
-    }
+  const executeCancelSubscription = async () => {
     setCancelling(true);
     setCancelMessage(null);
     setErrorMessage(null);
@@ -92,9 +89,11 @@ export default function BillingPage() {
         throw new Error(result.error || 'Failed to cancel subscription.');
       }
       setCancelMessage(result.message);
+      toast.success(result.message || 'Subscription cancelled successfully.');
       await fetchBillingData();
     } catch (err: any) {
       setErrorMessage(err.message || 'Unable to cancel subscription.');
+      toast.error(err.message || 'Unable to cancel subscription.');
     } finally {
       setCancelling(false);
     }
@@ -327,7 +326,7 @@ export default function BillingPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleCancelSubscription}
+                  onClick={() => setShowCancelModal(true)}
                   disabled={cancelling}
                   className="text-red-700 hover:bg-red-50 hover:text-red-800 border-red-200"
                 >
@@ -373,6 +372,44 @@ export default function BillingPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Subscription Cancellation Confirmation Modal */}
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        title="Cancel Monthly Subscription"
+        description="Are you sure you want to cancel your monthly subscription? You will retain access until the end of your current paid billing period."
+        footer={
+          <div className="flex items-center justify-end gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCancelModal(false)}
+            >
+              Keep Subscription
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={cancelling}
+              onClick={async () => {
+                setShowCancelModal(false);
+                await executeCancelSubscription();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-3 bg-red-50 text-red-900 border border-red-200 rounded-xl text-xs space-y-1">
+          <p className="font-bold">Cancellation terms:</p>
+          <p className="text-red-700 text-[11px] leading-relaxed">
+            Your workspace capacity will remain active until your current billing period ends. No subsequent renewals will be charged to your payment method.
+          </p>
+        </div>
+      </Modal>
     </AppShell>
   );
 }

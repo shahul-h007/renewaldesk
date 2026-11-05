@@ -350,6 +350,39 @@ export async function archiveCustomerInDb(businessId: string, customerId: string
 }
 
 /**
+ * Hard-delete a customer and all related records (assets, schedules, reminders, activities).
+ * Used for removing sample data so it never counts toward capacity or shows in Archived.
+ */
+export async function hardDeleteCustomerInDb(businessId: string, customerId: string) {
+  const supabase = createClient();
+
+  // 1. Delete activities referencing this customer
+  try {
+    await supabase
+      .from('activities')
+      .delete()
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId);
+  } catch (err) {
+    console.warn('Could not clean activities before customer deletion:', err);
+  }
+
+  // 2. Delete customer record. ON DELETE CASCADE cleans up assets, service_schedules, reminders, and service_records.
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('business_id', businessId)
+    .eq('id', customerId);
+
+  if (error) {
+    console.error('Error hard-deleting customer from DB:', error);
+    throw error;
+  }
+
+  return { success: true };
+}
+
+/**
  * Reactivate an archived customer (subject to active capacity check).
  */
 export async function reactivateCustomerInDb(businessId: string, customerId: string) {

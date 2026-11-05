@@ -31,6 +31,7 @@ export function Modal({
 }: ModalProps) {
   const effectiveMaxWidth = size || maxWidth || 'lg';
   const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -43,13 +44,52 @@ export function Modal({
     }
   }, [isOpen]);
 
-  // Handle ESC key press
+  // Focus trap & ESC key press
   useEffect(() => {
+    if (!isOpen) return;
+
+    // Focus first focusable element inside dialog on open
+    const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements && focusableElements.length > 0) {
+      setTimeout(() => {
+        focusableElements[0]?.focus();
+      }, 50);
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        if (!dialogRef.current) return;
+        const focusables = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        );
+        if (focusables.length === 0) return;
+
+        const firstElement = focusables[0];
+        const lastElement = focusables[focusables.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
@@ -77,6 +117,7 @@ export function Modal({
     >
       {/* Modal / BottomSheet Container */}
       <div
+        ref={dialogRef}
         className={cn(
           'w-full bg-white shadow-2xl flex flex-col overflow-hidden',
           // Mobile BottomSheet styles

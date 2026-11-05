@@ -26,8 +26,8 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-gray-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20">
-        <div className="min-w-0 pr-4">
+      <header className="h-16 bg-white border-b border-gray-200/80 px-3.5 sm:px-8 flex items-center justify-between sticky top-0 z-20">
+        <div className="min-w-0 pr-2 sm:pr-4">
           <h1 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight leading-tight truncate">
             {title}
           </h1>

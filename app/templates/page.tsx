@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { HelpTip } from '@/components/ui/HelpTip';
+import { useToast } from '@/components/ui/Toast';
 import {
   Save,
   Check,
@@ -47,6 +48,7 @@ export default function TemplatesPage() {
   } = useRenewalDesk();
 
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
+  const toast = useToast();
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templates[0]?.id || '');
@@ -147,9 +149,11 @@ export default function TemplatesPage() {
       });
       setSavedSuccess(true);
       setActionError(null);
+      toast.success('Template saved successfully!');
       setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err: any) {
       setActionError(err?.message || 'Failed to save template changes.');
+      toast.error('Failed to save template changes.');
     }
   };
 
@@ -169,6 +173,7 @@ export default function TemplatesPage() {
       setNewTplName('');
       setNewTplText('');
       setNewTplType('CUSTOM');
+      toast.success(`Template "${created?.name || 'New Template'}" created!`);
       if (created?.id) {
         setActiveTemplateId(created.id);
         setEditedText(created.templateText);
@@ -176,6 +181,7 @@ export default function TemplatesPage() {
       }
     } catch (err: any) {
       setActionError(err?.message || 'Could not create new template.');
+      toast.error('Could not create new template.');
     } finally {
       setIsSubmittingNew(false);
     }
@@ -187,8 +193,10 @@ export default function TemplatesPage() {
     try {
       await restoreDefaultTemplates();
       setIsRestoreModalOpen(false);
+      toast.success('Default templates restored successfully.');
     } catch (err: any) {
       setActionError(err?.message || 'Could not restore standard templates.');
+      toast.error('Could not restore standard templates.');
     } finally {
       setIsRestoring(false);
     }
@@ -201,6 +209,7 @@ export default function TemplatesPage() {
     try {
       await deleteTemplate(activeTemplate.id);
       setIsDeleteModalOpen(false);
+      toast.success('Template deleted.');
       // Select first remaining template
       const remaining = templates.filter((t) => t.id !== activeTemplate.id);
       if (remaining.length > 0) {

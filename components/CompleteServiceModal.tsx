@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Customer, Asset, ServiceRecord, IntervalUnit } from '@/lib/types';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatReadableDate, formatIntervalDisplay } from '@/lib/due-date-engine';
+import { useToast } from './ui/Toast';
 import { CheckCircle2, X, Calendar, ArrowRight, Clock } from 'lucide-react';
 
 interface CompleteServiceModalProps {
@@ -30,6 +31,7 @@ export function CompleteServiceModal({
   onComplete,
 }: CompleteServiceModalProps) {
   const { markServiceCompleted, business, catalog } = useRenewalDesk();
+  const toast = useToast();
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [completedDate, setCompletedDate] = useState(todayStr);
@@ -61,6 +63,7 @@ export function CompleteServiceModal({
     } else {
       markServiceCompleted(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
     }
+    toast.success(`Service completed! Next due date scheduled for ${nextDueCalculated}.`);
     onClose();
   };
 

@@ -227,9 +227,19 @@ export function GuidedTour({
         <h3 className="font-bold text-gray-900 text-sm mb-1.5 leading-snug">
           {currentStep.title}
         </h3>
-        <p className="text-xs text-gray-600 leading-relaxed mb-5">
+        <p className="text-xs text-gray-600 leading-relaxed mb-4">
           {currentStep.description}
         </p>
+
+        {/* Missing target fallback explanation */}
+        {!targetRect && currentStep.missingTargetExplanation && (
+          <div className="mb-4 p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-900 flex items-start gap-2">
+            <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">
+              <strong>Workflow Guide:</strong> {currentStep.missingTargetExplanation}
+            </span>
+          </div>
+        )}
 
         {/* Step dots & Controls */}
         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -288,9 +298,19 @@ export function GuidedTour({
         <h3 className="font-bold text-gray-900 text-base mb-1.5">
           {currentStep.title}
         </h3>
-        <p className="text-xs text-gray-600 leading-relaxed mb-4">
+        <p className="text-xs text-gray-600 leading-relaxed mb-3">
           {currentStep.description}
         </p>
+
+        {/* Missing target fallback explanation */}
+        {!targetRect && currentStep.missingTargetExplanation && (
+          <div className="mb-3.5 p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-900 flex items-start gap-2">
+            <HelpCircle className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+            <span className="leading-snug">
+              {currentStep.missingTargetExplanation}
+            </span>
+          </div>
+        )}
 
         {/* Mobile Action Controls */}
         <div className="flex items-center gap-2 pt-2">

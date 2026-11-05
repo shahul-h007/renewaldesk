@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { HelpTip } from '@/components/ui/HelpTip';
+import { useToast } from '@/components/ui/Toast';
 import {
   UploadCloud,
   CheckCircle2,
@@ -50,8 +51,9 @@ type WizardStep = 1 | 2 | 3 | 4;
 
 export default function ImportPage() {
   const router = useRouter();
-  const { customers, deleteCustomer, importCustomersFromCSV, business, isDatabaseMode } = useRenewalDesk();
+  const { customers, deleteCustomer, hardDeleteCustomer, importCustomersFromCSV, business, isDatabaseMode } = useRenewalDesk();
   const { business: authBiz } = useAuth();
+  const toast = useToast();
 
   const [step, setStep] = useState<WizardStep>(1);
   const [csvText, setCsvText] = useState('');
@@ -112,7 +114,7 @@ export default function ImportPage() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit. Please upload a smaller CSV file.');
+      toast.error('File size exceeds 5MB limit. Please upload a smaller CSV file.');
       return;
     }
 
@@ -133,7 +135,7 @@ export default function ImportPage() {
     if (!fileName) setFileName(name);
     const { headers: parsedHeaders, rows: parsedRows } = parseCSVText(content);
     if (parsedHeaders.length === 0) {
-      alert('Could not read any column headers from CSV. Please check the file format.');
+      toast.error('Could not read any column headers from CSV. Please check the file format.');
       return;
     }
     setHeaders(parsedHeaders);
@@ -166,7 +168,7 @@ export default function ImportPage() {
 
   const handleProceedToValidation = () => {
     if (!mapping.nameCol || !mapping.phoneCol) {
-      alert('Please select columns for at least Customer Name and Mobile Number.');
+      toast.error('Please select columns for at least Customer Name and Mobile Number.');
       return;
     }
 
@@ -256,10 +258,15 @@ export default function ImportPage() {
     );
 
     sampleCusts.forEach((c) => {
-      deleteCustomer(c.id);
+      if (hardDeleteCustomer) {
+        void hardDeleteCustomer(c.id);
+      } else {
+        deleteCustomer(c.id);
+      }
     });
 
     setSampleRemoved(true);
+    toast.success('Sample customers removed cleanly.');
   };
 
   const resetWizard = () => {

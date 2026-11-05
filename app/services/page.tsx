@@ -11,6 +11,7 @@ import { formatINR } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/Toast';
 import {
   Wrench,
   Plus,
@@ -24,6 +25,7 @@ import {
 export default function ServicesPage() {
   const { catalog, business, services, toggleServiceTypeStatus, isLoaded } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
+  const toast = useToast();
 
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
@@ -230,7 +232,10 @@ export default function ServicesPage() {
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => toggleServiceTypeStatus(item.id)}
+                        onClick={() => {
+                          toggleServiceTypeStatus(item.id);
+                          toast.success(`"${item.name}" ${item.isActive ? 'deactivated' : 'activated'}.`);
+                        }}
                         title={isActive ? 'Deactivate service type' : 'Activate service type'}
                         className={`p-2 rounded-lg border text-xs transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center ${
                           isActive

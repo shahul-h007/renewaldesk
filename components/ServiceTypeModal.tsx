@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { ServiceCatalogItem, IntervalUnit } from '@/lib/types';
 import { formatIntervalDisplay } from '@/lib/due-date-engine';
+import { useToast } from './ui/Toast';
 import { X, Wrench, AlertCircle, CheckCircle2, Trash2, Power, Clock, Info } from 'lucide-react';
 
 interface ServiceTypeModalProps {
@@ -24,6 +25,8 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
   const [updateExistingCustomers, setUpdateExistingCustomers] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const toast = useToast();
 
   const isEditing = Boolean(itemToEdit);
   const referencedCount = itemToEdit
@@ -126,10 +129,13 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
         onClose();
       }, 1500);
     } else {
-      if (confirm(`Are you sure you want to delete "${itemToEdit.name}"?`)) {
-        deleteServiceType(itemToEdit.id);
-        onClose();
+      if (!confirmDelete) {
+        setConfirmDelete(true);
+        return;
       }
+      deleteServiceType(itemToEdit.id);
+      toast.success(`"${itemToEdit.name}" deleted successfully.`);
+      onClose();
     }
   };
 
@@ -343,15 +349,35 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
           {/* Modal Actions */}
           <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
             {isEditing ? (
-              <button
-                type="button"
-                onClick={handleDeleteOrDeactivate}
-                className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                title={referencedCount > 0 ? 'Deactivate service type' : 'Delete service type'}
-              >
-                {referencedCount > 0 ? <Power className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
-                <span>{referencedCount > 0 ? 'Deactivate' : 'Delete'}</span>
-              </button>
+              confirmDelete ? (
+                <div className="flex items-center gap-1.5 animate-fade-in">
+                  <span className="text-[11px] font-bold text-red-600">Delete service?</span>
+                  <button
+                    type="button"
+                    onClick={handleDeleteOrDeactivate}
+                    className="px-2.5 py-1 rounded bg-red-600 text-white font-bold text-[11px] hover:bg-red-700 min-h-[36px]"
+                  >
+                    Yes, Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-2 py-1 text-[11px] text-gray-500 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleDeleteOrDeactivate}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors min-h-[44px]"
+                  title={referencedCount > 0 ? 'Deactivate service type' : 'Delete service type'}
+                >
+                  {referencedCount > 0 ? <Power className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>{referencedCount > 0 ? 'Deactivate' : 'Delete'}</span>
+                </button>
+              )
             ) : <div />}
 
             <div className="flex items-center gap-2.5">

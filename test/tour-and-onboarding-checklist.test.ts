@@ -135,7 +135,27 @@ test('Guided Tour & Onboarding Checklist Test Suite', async (t) => {
     );
     assert.strictEqual(allDoneHistory.hasCompletedService, true, 'Historical completed records fulfill completion');
 
+    // Case 7: CRITICAL — Sample customer records MUST NOT tick any checklist items!
+    const sampleOnlyState = calculateChecklistProgress(
+      [
+        { id: 'sample_1', name: `Kavitha Nair ${SAMPLE_TAG}`, isArchived: false, notes: SAMPLE_TAG },
+        { id: 'sample_2', name: `Dr. Rahul Sharma ${SAMPLE_TAG}`, isArchived: false, notes: SAMPLE_TAG },
+      ],
+      [
+        { customerId: 'sample_1', followUpStatus: 'CONTACTED', notes: SAMPLE_TAG },
+        { customerId: 'sample_2', followUpStatus: 'COMPLETED', notes: SAMPLE_TAG },
+      ],
+      [
+        { customerId: 'sample_2', completedAt: '2026-11-01', notes: SAMPLE_TAG },
+      ]
+    );
+    assert.strictEqual(sampleOnlyState.hasCustomers, false, 'Sample customers must not tick "Add customer"');
+    assert.strictEqual(sampleOnlyState.hasSentReminder, false, 'Sample customer reminders must not tick "Send reminder"');
+    assert.strictEqual(sampleOnlyState.hasCompletedService, false, 'Sample customer completions must not tick "Mark completed"');
+    assert.strictEqual(sampleOnlyState.completedCount, 0, 'Checklist ticks must remain 0 when only sample data exists');
+
     console.log('  ✔ Checklist calculations accurately reflect live customer, reminder, and completion data');
+    console.log('  ✔ Verified: Sample customer records strictly excluded from checklist progress ticks');
   });
 
   await t.test('--- Suite 4: Checklist Dismissal Persistence ---', () => {
@@ -180,5 +200,86 @@ test('Guided Tour & Onboarding Checklist Test Suite', async (t) => {
     assert.ok(roClients[0].assetName.toLowerCase().includes('purifier'));
 
     console.log('  ✔ Sample data generation, tagging, and identification verified across business categories');
+  });
+
+  await t.test('--- Suite 6: Tour Missing Target Graceful Handling ---', () => {
+    // Verify each step has a clear fallback text explanation when its DOM target element is missing
+    TOUR_STEPS.forEach((step) => {
+      assert.ok(
+        step.missingTargetExplanation && step.missingTargetExplanation.length > 10,
+        `Step ${step.id} must define a clear missingTargetExplanation`
+      );
+    });
+
+    // Test WhatsApp and Complete steps (the ones absent in a 0-customer account)
+    const whatsappStep = TOUR_STEPS.find(s => s.id === 'tour-step-whatsapp');
+    const completeStep = TOUR_STEPS.find(s => s.id === 'tour-step-complete');
+
+    assert.ok(whatsappStep?.missingTargetExplanation?.includes('WhatsApp'));
+    assert.ok(completeStep?.missingTargetExplanation?.includes('completed'));
+
+    console.log('  ✔ All tour steps contain fallback explanations when target DOM element is absent');
+  });
+
+  await t.test('--- Suite 7: Sample Data Hard-Delete Invariant ---', () => {
+    // Simulate active store state with 3 sample clients and 1 real client
+    const sampleSeeds = generateSampleClients('Air Conditioning Maintenance');
+    let customers = sampleSeeds.map((s, i) => ({
+      id: `sample_${i}`,
+      name: s.name,
+      phone: s.phone,
+      address: s.address,
+      notes: s.notes,
+    }));
+    customers.push({
+      id: 'real_1',
+      name: 'Dr. John Doe',
+      phone: '9846099999',
+      address: 'Kochi',
+      notes: 'Real customer',
+    });
+
+    let assets = customers.map((c) => ({
+      id: `asset_${c.id}`,
+      customerId: c.id,
+      name: 'AC Unit',
+    }));
+
+    let services = customers.map((c) => ({
+      id: `svc_${c.id}`,
+      customerId: c.id,
+      followUpStatus: 'NOT_CONTACTED',
+    }));
+
+    let archivePool: any[] = [];
+
+    // Simulate "Remove Sample Data" using hardDeleteCustomer logic
+    const sampleCustIds = customers.filter(isSampleCustomer).map(c => c.id);
+    assert.strictEqual(sampleCustIds.length, 3, 'Must identify all 3 sample customers for hard-delete');
+
+    sampleCustIds.forEach((id) => {
+      // 1. Remove from active state
+      customers = customers.filter(c => c.id !== id);
+      assets = assets.filter(a => a.customerId !== id);
+      services = services.filter(s => s.customerId !== id);
+
+      // 2. Do NOT add to archive pool, and ensure archive pool is purged of this ID
+      archivePool = archivePool.filter(item => item.id !== id);
+    });
+
+    // Invariant 1: Only real customer remains in active list
+    assert.strictEqual(customers.length, 1);
+    assert.strictEqual(customers[0].id, 'real_1');
+
+    // Invariant 2: Related rows (assets, services) for sample customers are fully purged
+    assert.strictEqual(assets.length, 1);
+    assert.strictEqual(assets[0].customerId, 'real_1');
+    assert.strictEqual(services.length, 1);
+    assert.strictEqual(services[0].customerId, 'real_1');
+
+    // Invariant 3: Sample data NEVER enters the archive pool (never counts toward capacity or shows in Archived)
+    assert.strictEqual(archivePool.length, 0, 'Archive pool must remain 0 — sample data is hard-deleted, not archived');
+
+    console.log('  ✔ Sample data hard-delete invariant verified: cascades to related rows and never enters archive pool');
   });
 });

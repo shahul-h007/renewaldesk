@@ -1,3 +1,5 @@
+import { isSampleCustomer, SAMPLE_TAG } from './sample-data';
+
 export interface TourStep {
   id: string;
   stepNumber: number;
@@ -7,6 +9,7 @@ export interface TourStep {
   targetSelector: string;
   placement?: 'top' | 'bottom' | 'left' | 'right' | 'center';
   badgeText?: string;
+  missingTargetExplanation?: string;
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -20,6 +23,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="tour-add-customer"]',
     placement: 'bottom',
     badgeText: 'Step 1 of 5',
+    missingTargetExplanation: 'Use the "Add Customer" button in the header or bottom right FAB to add your first customer.',
   },
   {
     id: 'tour-step-queue',
@@ -31,6 +35,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="tour-today-queue"]',
     placement: 'bottom',
     badgeText: 'Step 2 of 5',
+    missingTargetExplanation: "The queue displays all scheduled maintenance appointments grouped by due date.",
   },
   {
     id: 'tour-step-whatsapp',
@@ -42,6 +47,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="tour-whatsapp-action"]',
     placement: 'top',
     badgeText: 'Step 3 of 5',
+    missingTargetExplanation: 'The 1-click WhatsApp reminder button appears directly on each customer row once customers are added.',
   },
   {
     id: 'tour-step-complete',
@@ -53,6 +59,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="tour-complete-action"]',
     placement: 'top',
     badgeText: 'Step 4 of 5',
+    missingTargetExplanation: 'The "Mark completed" action appears once a customer is booked. Marking completed auto-schedules their next visit.',
   },
   {
     id: 'tour-step-results',
@@ -64,6 +71,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="tour-results-link"]',
     placement: 'right',
     badgeText: 'Step 5 of 5',
+    missingTargetExplanation: 'Access the Results page from the navigation bar anytime to monitor recovered income.',
   },
 ];
 
@@ -163,19 +171,34 @@ export interface ChecklistProgress {
  * 3. Mark first service completed (any service with followUpStatus === 'COMPLETED' or historical records)
  */
 export function calculateChecklistProgress(
-  customers: Array<{ id?: string; isArchived?: boolean }> = [],
-  services: Array<{ followUpStatus?: string }> = [],
-  serviceHistory: Array<unknown> = []
+  customers: Array<{ id?: string; name?: string; address?: string; notes?: string; isArchived?: boolean }> = [],
+  services: Array<{ customerId?: string; followUpStatus?: string; notes?: string }> = [],
+  serviceHistory: Array<{ customerId?: string; notes?: string } | any> = []
 ): ChecklistProgress {
-  const hasCustomers = customers.filter(c => !c.isArchived).length > 0;
+  // Exclude archived customers and sample data records from checklist ticks
+  const realCustomers = customers.filter(c => !c.isArchived && !isSampleCustomer(c));
+  const realCustomerIds = new Set(realCustomers.map(c => c.id).filter(Boolean));
+
+  const hasCustomers = realCustomers.length > 0;
   
+  // Real reminders must belong to a real customer and not be sample data
   const hasSentReminder = services.some(
-    s => s.followUpStatus && s.followUpStatus !== 'NOT_CONTACTED'
+    s => s.followUpStatus &&
+         s.followUpStatus !== 'NOT_CONTACTED' &&
+         (!s.customerId || realCustomerIds.has(s.customerId)) &&
+         !(s.notes && s.notes.includes(SAMPLE_TAG))
   );
 
+  // Real completed services must belong to a real customer and not be sample data
   const hasCompletedService =
-    serviceHistory.length > 0 ||
-    services.some(s => s.followUpStatus === 'COMPLETED');
+    serviceHistory.some(
+      (h: any) => (!h.customerId || realCustomerIds.has(h.customerId)) && !(h.notes && h.notes.includes(SAMPLE_TAG))
+    ) ||
+    services.some(
+      s => s.followUpStatus === 'COMPLETED' &&
+           (!s.customerId || realCustomerIds.has(s.customerId)) &&
+           !(s.notes && s.notes.includes(SAMPLE_TAG))
+    );
 
   let completedCount = 0;
   if (hasCustomers) completedCount++;

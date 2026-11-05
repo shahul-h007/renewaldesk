@@ -176,8 +176,8 @@ export default function DashboardPage() {
             <div className="flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-red-900 text-sm">Cloud Database Connection Issue</p>
-                <p className="text-red-700 mt-0.5">{dbError || authError}</p>
+                <p className="font-bold text-red-900 text-sm">Connection Issue</p>
+                <p className="text-red-700 mt-0.5">Unable to sync latest records. Please check your connection and retry.</p>
               </div>
             </div>
             {reloadFromDb && (
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors shrink-0 shadow-xs min-h-[36px]"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Retry Connection</span>
+                <span>Retry Sync</span>
               </button>
             )}
           </div>

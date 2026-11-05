@@ -50,8 +50,8 @@ export function AppShell({ title, subtitle, headerActions, children }: AppShellP
               <div className="flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
                 <div>
-                  <p className="font-semibold">{authError ? 'Cloud sign-in needs attention' : 'Cloud data needs attention'}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-red-800">{authError || dbError}</p>
+                  <p className="font-semibold">{authError ? 'Sign-in needs attention' : 'Connection needs attention'}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-red-800">Please check your network connection and retry.</p>
                 </div>
               </div>
               <button
@@ -63,13 +63,13 @@ export function AppShell({ title, subtitle, headerActions, children }: AppShellP
                 className="inline-flex items-center justify-center gap-1.5 shrink-0 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 min-h-[44px] min-w-[44px]"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                {authError ? 'Retry account lookup' : 'Retry sync'}
+                {authError ? 'Retry sign-in' : 'Retry sync'}
               </button>
             </div>
           </div>
         )}
 
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
           {children}
         </main>
       </div>

@@ -11,6 +11,7 @@ import {
   createCustomerInDb,
   updateCustomerInDb,
   archiveCustomerInDb,
+  hardDeleteCustomerInDb,
   reactivateCustomerInDb,
   importCustomersFromCSVInDb,
   updateFollowUpStatusInDb,
@@ -44,6 +45,7 @@ interface RenewalDeskContextType {
   ) => Promise<{ success: boolean; error?: string; customerId?: string; warning?: string }>;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
+  hardDeleteCustomer?: (id: string) => Promise<{ success: boolean; error?: string }>;
   restoreCustomer?: (id: string) => Promise<{ success: boolean; error?: string }>;
   updateFollowUpStatus: (serviceId: string, status: FollowUpStatus) => void;
   markServiceCompleted: (
@@ -566,6 +568,31 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     }
   };
 
+  const hardDeleteCustomer = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    // 1. Remove from active state
+    setCustomers(prev => prev.filter(c => c.id !== id));
+    setAssets(prev => prev.filter(a => a.customerId !== id));
+    setServices(prev => prev.filter(s => s.customerId !== id));
+    setServiceHistory(prev => prev.filter((h: any) => h.customerId !== id));
+
+    // 2. Remove from archived pool so it NEVER appears in Archived tab
+    archivedPoolRef.current.customers = archivedPoolRef.current.customers.filter(c => c.id !== id);
+    archivedPoolRef.current.assets = archivedPoolRef.current.assets.filter(a => a.customerId !== id);
+    archivedPoolRef.current.services = archivedPoolRef.current.services.filter(s => s.customerId !== id);
+
+    // 3. Hard-delete from database if cloud mode
+    if (isDatabaseMode && authBiz) {
+      try {
+        await hardDeleteCustomerInDb(authBiz.id, id);
+        await reloadFromDb();
+      } catch (err: any) {
+        console.error('Failed to hard-delete customer from DB:', err);
+        return { success: false, error: err.message };
+      }
+    }
+    return { success: true };
+  };
+
   const restoreCustomer = async (id: string): Promise<{ success: boolean; error?: string }> => {
     try {
       if (isDatabaseMode && authBiz) {
@@ -996,6 +1023,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        hardDeleteCustomer,
         restoreCustomer,
         updateFollowUpStatus,
         markServiceCompleted,
