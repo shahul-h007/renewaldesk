@@ -171,6 +171,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={MessageSquare}
+              data-tour="tour-whatsapp-action"
               className="flex-1 min-h-[44px]"
             >
               WhatsApp
@@ -191,6 +192,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tour="tour-complete-action"
               className="flex-1 min-h-[44px]"
             >
               Mark completed
@@ -201,6 +203,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tour="tour-complete-action"
               className="flex-1 min-h-[44px] text-emerald-700 border-emerald-200 bg-emerald-50"
             >
               Completed
@@ -287,6 +290,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={MessageSquare}
+              data-tour="tour-whatsapp-action"
               className="min-h-[36px]"
             >
               WhatsApp
@@ -307,6 +311,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tour="tour-complete-action"
               className="min-h-[36px]"
             >
               Mark completed
@@ -317,6 +322,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tour="tour-complete-action"
               className="min-h-[36px] text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
             >
               Completed

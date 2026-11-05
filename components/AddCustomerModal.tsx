@@ -10,6 +10,7 @@ import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Button } from './ui/Button';
+import { HelpTip } from './ui/HelpTip';
 import {
   UserPlus,
   Clock,
@@ -234,7 +235,15 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
             </div>
 
             <Select
-              label="Service Type"
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Service Type</span>
+                  <HelpTip
+                    title="Service Interval & Cadence"
+                    content="Service interval defines how frequently maintenance should repeat (e.g. every 6 months). When you mark a service completed, RenewalDesk uses this cadence to auto-schedule the next due date."
+                  />
+                </span>
+              }
               required
               value={serviceName}
               onChange={(e) => handleServiceTypeChange(e.target.value)}
@@ -257,7 +266,15 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
 
             <div className="sm:col-span-2">
               <Input
-                label="Next Due Date"
+                label={
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Next Due Date</span>
+                    <HelpTip
+                      title="Next Due Date"
+                      content="Target date for upcoming service. When due, this customer will appear in your Today follow-up queue with 1-click WhatsApp reminders."
+                    />
+                  </span>
+                }
                 type="date"
                 required
                 value={nextDueDate}

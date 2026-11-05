@@ -11,7 +11,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
+  label?: React.ReactNode;
   error?: string;
   helperText?: string;
   options?: SelectOption[];
@@ -35,7 +35,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     },
     ref
   ) => {
-    const selectId = id || (label ? `select-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
+    const selectId = id || (typeof label === 'string' ? `select-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
     const errorId = error && selectId ? `${selectId}-error` : undefined;
     const helperId = helperText && selectId ? `${selectId}-helper` : undefined;
 

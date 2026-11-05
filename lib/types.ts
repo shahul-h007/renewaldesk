@@ -95,6 +95,7 @@ export interface CompletedServiceRecord {
 }
 
 export interface BusinessProfile {
+  id?: string;
   name: string;
   phone: string;
   industry: string;

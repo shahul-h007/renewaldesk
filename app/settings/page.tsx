@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
+import { resetTour } from '@/lib/tour-config';
 import { AppShell } from '@/components/AppShell';
 import { Tabs, TabItem } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
@@ -48,6 +50,7 @@ export default function SettingsPage() {
     customers,
   } = useRenewalDesk();
   const { user, isConfigured, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
 
@@ -412,8 +415,33 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                {/* Replay Tour Action Card */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 gap-3">
+                  <div>
+                    <p className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <span>Take the Interactive Guided Tour</span>
+                    </p>
+                    <p className="text-[11px] text-blue-800 mt-0.5">
+                      Walk through the 5-step workflow: add customers, check today&apos;s queue, send reminders, and book renewals.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      resetTour(business.id);
+                      router.push('/dashboard?tour=true');
+                    }}
+                    leftIcon={RotateCcw}
+                    className="shrink-0"
+                  >
+                    Replay Tour
+                  </Button>
+                </div>
+
                 {/* Import CSV Quick Link */}
-                <div className="pt-2 flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="pt-1 flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
                   <div>
                     <p className="font-bold text-xs text-gray-900">Need to import an existing customer ledger?</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">Upload any Excel/CSV sheet with names and phone numbers.</p>

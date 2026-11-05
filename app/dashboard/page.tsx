@@ -9,6 +9,9 @@ import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { TrialBanner } from '@/components/TrialBanner';
+import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { GuidedTour } from '@/components/GuidedTour';
+import { isTourCompleted, isTourSkipped } from '@/lib/tour-config';
 import { Tabs, TabItem } from '@/components/ui/Tabs';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
@@ -40,6 +43,22 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [billingUsage, setBillingUsage] = useState<any>(null);
+  const [isTourOpen, setIsTourOpen] = useState(false);
+
+  // Check URL ?tour=true query param or automatic first-run launch
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const hasTourParam = params.get('tour') === 'true';
+    const bizId = authBiz?.id || business?.id;
+
+    if (hasTourParam) {
+      setIsTourOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (isLoaded && !isTourCompleted(bizId) && !isTourSkipped(bizId)) {
+      setIsTourOpen(true);
+    }
+  }, [isLoaded, authBiz?.id, business?.id]);
 
   const fetchUsage = React.useCallback(() => {
     if (!authBiz?.id) return;
@@ -186,6 +205,13 @@ export default function DashboardPage() {
           />
         )}
 
+        {/* Getting Started Onboarding Checklist Card */}
+        <OnboardingChecklist
+          onOpenAddCustomer={() => setShowAddModal(true)}
+          onStartTour={() => setIsTourOpen(true)}
+          businessId={authBiz?.id || business?.id}
+        />
+
         {/* Top KPI Cards (Tappable to jump to tabs) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {/* Overdue */}
@@ -308,7 +334,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Action Queue Container */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
+        <div data-tour="tour-today-queue" className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
           {/* Controls Bar: Segmented Tabs + Search + Template Shortcut */}
           <div className="p-3.5 sm:p-4 border-b border-gray-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Segmented Control Tabs */}
@@ -357,7 +383,7 @@ export default function DashboardPage() {
               })
             ) : customers.length === 0 ? (
               /* First-Run Empty State */
-              <div className="p-6 sm:p-12">
+              <div data-tour="tour-add-customer" className="p-6 sm:p-12">
                 <EmptyState
                   icon={Users}
                   title="Start Your First Service Recovery Cycle"
@@ -432,6 +458,12 @@ export default function DashboardPage() {
       <AddCustomerModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+      />
+
+      <GuidedTour
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        businessId={authBiz?.id || business?.id}
       />
     </AppShell>
   );

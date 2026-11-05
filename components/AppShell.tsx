@@ -80,6 +80,7 @@ export function AppShell({ title, subtitle, headerActions, children }: AppShellP
           type="button"
           onClick={() => setShowMobileAddModal(true)}
           aria-label="Add New Customer"
+          data-tour="tour-add-customer"
           className="md:hidden fixed bottom-20 right-4 z-30 flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 active:scale-95 transition-all focus:outline-hidden focus:ring-4 focus:ring-blue-500/30"
         >
           <UserPlus className="w-6 h-6" />

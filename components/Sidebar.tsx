@@ -95,6 +95,7 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               title={item.label}
+              data-tour={item.href === '/results' ? 'tour-results-link' : undefined}
               className={`flex items-center justify-center lg:justify-between px-2.5 lg:px-3 py-2.5 rounded-xl text-xs font-medium transition-all group ${
                 isActive
                   ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'

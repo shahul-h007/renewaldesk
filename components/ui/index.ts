@@ -8,3 +8,4 @@ export * from './Select';
 export * from './EmptyState';
 export * from './PageHeader';
 export * from './Toast';
+export * from './HelpTip';

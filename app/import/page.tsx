@@ -19,6 +19,7 @@ import { fetchArchivedCustomersInDb } from '@/lib/db/operations';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { HelpTip } from '@/components/ui/HelpTip';
 import {
   UploadCloud,
   CheckCircle2,
@@ -422,7 +423,13 @@ export default function ImportPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Match Columns to RenewalDesk</CardTitle>
+                <CardTitle className="inline-flex items-center gap-2">
+                  <span>Match Columns to RenewalDesk</span>
+                  <HelpTip
+                    title="CSV Column Matching"
+                    content="Match the headers in your spreadsheet with RenewalDesk fields. Only Customer Name and Mobile Phone are required; appliance, dates, and amounts are optional."
+                  />
+                </CardTitle>
                 <CardDescription>
                   Found <strong className="text-gray-900">{rawRows.length}</strong> rows in {fileName || 'your file'}. Verify which column corresponds to each field:
                 </CardDescription>

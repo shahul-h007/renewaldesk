@@ -85,7 +85,7 @@ export function TopHeader({ title, subtitle, headerActions }: TopHeaderProps) {
 
           {/* Global "Add Customer" button: only on /dashboard and /customers, hidden on mobile (mobile uses FAB) */}
           {showAddCustomerCta && (
-            <div className="hidden md:block">
+            <div className="hidden md:block" data-tour="tour-add-customer">
               <Button
                 variant="primary"
                 size="sm"

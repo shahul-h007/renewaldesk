@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { AlertCircle } from 'lucide-react';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+  label?: React.ReactNode;
   error?: string;
   helperText?: string;
   leftAddon?: React.ReactNode;
@@ -36,7 +36,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     // Generate an ID if not provided, for accessible label pairing
-    const inputId = id || (label ? `input-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
+    const inputId = id || (typeof label === 'string' ? `input-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
     const errorId = error && inputId ? `${inputId}-error` : undefined;
     const helperId = helperText && inputId ? `${inputId}-helper` : undefined;
 

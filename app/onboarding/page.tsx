@@ -102,7 +102,7 @@ export default function OnboardingPage() {
         }
 
         await refreshBusinessContext();
-        router.push('/dashboard');
+        router.push('/dashboard?tour=true');
       } else {
         // LocalStorage / Demo fallback when Supabase is not configured
         const demoBiz = {
@@ -117,7 +117,7 @@ export default function OnboardingPage() {
         localStorage.setItem('rd_business', JSON.stringify(demoBiz));
         localStorage.setItem('rd_catalog', JSON.stringify(getPresetsForCategory(businessType)));
         localStorage.setItem('rd_templates', JSON.stringify(getInitialTemplatesForCategory(businessType)));
-        router.push('/dashboard');
+        router.push('/dashboard?tour=true');
       }
     } catch (err: any) {
       console.error('Onboarding error:', err);

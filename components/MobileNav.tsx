@@ -40,6 +40,7 @@ export function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              data-tour={item.href === '/results' ? 'tour-results-link' : undefined}
               className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 relative rounded-xl min-h-[48px] select-none transition-colors ${
                 isActive ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-900'
               }`}

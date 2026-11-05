@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { HelpTip } from '@/components/ui/HelpTip';
 import {
   Save,
   Check,
@@ -614,8 +615,12 @@ export default function TemplatesPage() {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-gray-700">
-                Message Body *
+              <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                <span>Message Body *</span>
+                <HelpTip
+                  title="Template Placeholders"
+                  content="Placeholders like {{customer_name}}, {{service_name}}, and {{due_date}} are automatically filled with customer and vehicle/appliance details when generating the WhatsApp message."
+                />
               </label>
               <span className="text-[10px] text-gray-400">Click tag to insert</span>
             </div>
