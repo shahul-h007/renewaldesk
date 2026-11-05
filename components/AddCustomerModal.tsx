@@ -5,7 +5,21 @@ import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { IntervalUnit } from '@/lib/types';
 import { getCategoryMetadata } from '@/lib/catalog-presets';
-import { X, UserPlus, Sparkles, Clock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { Modal } from './ui/Modal';
+import { Input } from './ui/Input';
+import { Select } from './ui/Select';
+import { Button } from './ui/Button';
+import {
+  UserPlus,
+  Clock,
+  AlertCircle,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Wrench,
+  Check,
+} from 'lucide-react';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -16,24 +30,16 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const { addCustomer, business, catalog } = useRenewalDesk();
   const categoryMeta = getCategoryMetadata(business?.industry);
 
-  const todayStr = new Date().toISOString().split('T')[0];
   const sixMonthsAgo = () => {
     const d = new Date();
     d.setMonth(d.getMonth() - 6);
     return d.toISOString().split('T')[0];
   };
 
+  // Section 1: Basics
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [locality, setLocality] = useState('');
-  const [city, setCity] = useState(business?.city || '');
-  const [pincode, setPincode] = useState('');
-  const [landmark, setLandmark] = useState('');
-
-  const [assetName, setAssetName] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [location, setLocation] = useState('');
+  const [lastServiceDate, setLastServiceDate] = useState(sixMonthsAgo());
 
   const activeCatalog = catalog.filter(c => c.isActive !== false);
   const defaultItem = activeCatalog[0] || catalog[0];
@@ -41,14 +47,24 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const [serviceName, setServiceName] = useState(defaultItem?.name || categoryMeta.services[0]?.name || 'Periodic Routine Service');
   const [intervalValue, setIntervalValue] = useState(defaultItem?.intervalValue ?? categoryMeta.services[0]?.intervalValue ?? 6);
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(defaultItem?.intervalUnit ?? categoryMeta.services[0]?.intervalUnit ?? 'MONTHS');
-  const [lastServiceDate, setLastServiceDate] = useState(sixMonthsAgo());
-  const [nextDueDate, setNextDueDate] = useState(() => calculateNextDueDate(sixMonthsAgo(), defaultItem?.intervalValue ?? categoryMeta.services[0]?.intervalValue ?? 6, defaultItem?.intervalUnit ?? categoryMeta.services[0]?.intervalUnit ?? 'MONTHS'));
+  const [nextDueDate, setNextDueDate] = useState(() =>
+    calculateNextDueDate(sixMonthsAgo(), defaultItem?.intervalValue ?? categoryMeta.services[0]?.intervalValue ?? 6, defaultItem?.intervalUnit ?? categoryMeta.services[0]?.intervalUnit ?? 'MONTHS')
+  );
   const [serviceAmount, setServiceAmount] = useState(defaultItem?.typicalPrice ?? categoryMeta.services[0]?.typicalPrice ?? 1200);
+
+  // Section 2: More Details (Expandable)
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [address, setAddress] = useState('');
+  const [locality, setLocality] = useState('');
+  const [city, setCity] = useState(business?.city || '');
+  const [pincode, setPincode] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [assetName, setAssetName] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [location, setLocation] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   const handleServiceTypeChange = (selectedName: string) => {
     setServiceName(selectedName);
@@ -120,6 +136,10 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
         setCity(business?.city || '');
         setPincode('');
         setLandmark('');
+        setAssetName('');
+        setCapacity('');
+        setLocation('');
+        setShowMoreDetails(false);
         setSubmitError(null);
         onClose();
       } else {
@@ -133,288 +153,253 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-gray-900">Add New Customer</h2>
-              <p className="text-xs text-gray-500">Record customer details, appliance, and service cycle</p>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add New Customer"
+      description="Record customer details and schedule their recurring service cycle."
+      size="lg"
+    >
+      {/* Error Alert */}
+      {submitError && (
+        <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2.5 shadow-2xs">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold text-red-900">Unable to save customer</p>
+            <p className="text-red-700 mt-0.5">{submitError}</p>
+            {(submitError.toLowerCase().includes('capacity') ||
+              submitError.toLowerCase().includes('limit') ||
+              submitError.toLowerCase().includes('trial')) && (
+              <div className="pt-2">
+                <a
+                  href="/pricing"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs"
+                >
+                  <span>
+                    {submitError.toLowerCase().includes('start')
+                      ? 'Start 14-Day Free Trial'
+                      : 'Upgrade Plan'}
+                  </span>
+                  <ArrowRight className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ============================================================== */}
+        {/* SECTION 1: BASICS (Visible First) */}
+        {/* ============================================================== */}
+        <div className="space-y-3.5">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 uppercase tracking-wider pb-1 border-b border-gray-100">
+            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-black">1</span>
+            <span>Customer & Service Basics</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <Input
+              label="Customer Full Name"
+              required
+              placeholder="e.g. Anand Menon"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+
+            <Input
+              label="Mobile / WhatsApp Number"
+              required
+              type="tel"
+              placeholder="e.g. 9846011222"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              helperText="10-digit phone for 1-click WhatsApp reminders."
+            />
+
+            <Select
+              label="Service Type"
+              required
+              value={serviceName}
+              onChange={(e) => handleServiceTypeChange(e.target.value)}
+              helperText={`Cadence: ${formatIntervalDisplay(intervalValue, intervalUnit)}`}
+            >
+              {activeCatalog.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name} ({formatIntervalDisplay(c.intervalValue, c.intervalUnit)})
+                </option>
+              ))}
+            </Select>
+
+            <Input
+              label="Last Service Date"
+              type="date"
+              value={lastServiceDate}
+              onChange={(e) => handleLastDateChange(e.target.value)}
+              helperText="Date appliance was last serviced."
+            />
+
+            <div className="sm:col-span-2">
+              <Input
+                label="Next Due Date"
+                type="date"
+                required
+                value={nextDueDate}
+                onChange={(e) => setNextDueDate(e.target.value)}
+                helperText="Auto-calculated from service interval. Adjust manually if needed."
+                className="font-semibold text-blue-900 bg-blue-50/30 border-blue-300"
+              />
             </div>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
-        {/* Error Banner */}
-        {submitError && (
-          <div className="mx-6 mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2.5 shadow-2xs">
-            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-bold text-red-900">Unable to save customer</p>
-              <p className="text-red-700 mt-0.5">{submitError}</p>
-              {(submitError.toLowerCase().includes('capacity') ||
-                submitError.toLowerCase().includes('limit') ||
-                submitError.toLowerCase().includes('trial')) && (
-                <div className="pt-2">
-                  <a
-                    href="/pricing"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-xs"
-                  >
-                    <span>
-                      {submitError.toLowerCase().includes('start')
-                        ? 'Start 14-Day Free Trial'
-                        : 'Upgrade Plan'}
-                    </span>
-                    <ArrowRight className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
+        {/* ============================================================== */}
+        {/* SECTION 2: MORE DETAILS (Expandable Accordion) */}
+        {/* ============================================================== */}
+        <div className="pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => setShowMoreDetails(!showMoreDetails)}
+            className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 text-xs font-bold transition-colors select-none min-h-[44px]"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[11px] font-black">2</span>
+              <span>Additional Details (Address, Landmark, Model, Price)</span>
             </div>
-          </div>
-        )}
+            {showMoreDetails ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
-          {/* Section 1: Customer Details */}
-          <div>
-            <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>1. Customer Information</span>
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Customer Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Arun Kumar"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Mobile / WhatsApp *</label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. 9846012345"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Customer Address / Street <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Flat 4B, Skyline Ivy Apartments"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Locality / Area <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
+          {showMoreDetails && (
+            <div className="pt-4 space-y-3.5 animate-slide-up">
+              {/* Address Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Street Address / Flat / Building"
+                    placeholder="e.g. Flat 4B, Skyline Ivy Apartments"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                  />
+                </div>
+
+                <Input
+                  label="Locality / Area"
                   placeholder="e.g. Edappally"
                   value={locality}
                   onChange={(e) => setLocality(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Landmark <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Near Lulu Mall"
+
+                <Input
+                  label="Landmark"
+                  placeholder="e.g. Near Metro Pillar 380"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  City / Town <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
+
+                <Input
+                  label="City / Town"
                   placeholder="e.g. Kochi"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  PIN Code <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
+
+                <Input
+                  label="PIN Code"
                   placeholder="e.g. 682024"
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* Section 2: Appliance / Asset */}
-          <div className="pt-2 border-t border-gray-100">
-            <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-3">
-              2. {categoryMeta.assetLabel} Details
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">{categoryMeta.assetLabel} *</label>
-                <input
-                  type="text"
-                  placeholder={categoryMeta.assetPlaceholder}
-                  value={assetName}
-                  onChange={(e) => setAssetName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">{categoryMeta.capacityLabel}</label>
-                <input
-                  type="text"
+              {/* Appliance Specifics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-gray-100">
+                <div className="sm:col-span-2">
+                  <Input
+                    label={categoryMeta.assetLabel}
+                    placeholder={categoryMeta.assetPlaceholder}
+                    value={assetName}
+                    onChange={(e) => setAssetName(e.target.value)}
+                  />
+                </div>
+
+                <Input
+                  label={categoryMeta.capacityLabel}
                   placeholder={categoryMeta.capacityPlaceholder}
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
-              </div>
-            </div>
-          </div>
 
-          {/* Section 3: Service Cycle & Due Date */}
-          <div className="pt-2 border-t border-gray-100">
-            <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-3">
-              3. Service Cycle & Due Date
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Service Type *</label>
-                <select
-                  value={serviceName}
-                  onChange={(e) => handleServiceTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium"
-                >
-                  {activeCatalog.map(c => (
-                    <option key={c.id} value={c.name}>
-                      {c.name} ({formatIntervalDisplay(c.intervalValue, c.intervalUnit)})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-gray-400" />
-                  Cadence: {formatIntervalDisplay(intervalValue, intervalUnit)}
-                </p>
-              </div>
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Premises Location"
+                    placeholder="e.g. Master Bedroom / Office 2nd floor"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Expected Fee ({business.currency})
-                </label>
-                <input
+                <Input
+                  label={`Expected Fee (${business.currency})`}
                   type="number"
+                  placeholder="1200"
                   value={serviceAmount}
                   onChange={(e) => setServiceAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Last Service Date</label>
-                <input
-                  type="date"
-                  value={lastServiceDate}
-                  onChange={(e) => handleLastDateChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Next Due Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={nextDueDate}
-                  onChange={(e) => setNextDueDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-blue-400 bg-blue-50/30 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-semibold text-blue-950"
-                />
+              {/* Quick Interval Adjusters */}
+              <div className="pt-2 border-t border-gray-100 flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-gray-500">Quick Interval:</span>
+                {[
+                  { val: 3, unit: 'MONTHS' as IntervalUnit, label: '3 Mos' },
+                  { val: 6, unit: 'MONTHS' as IntervalUnit, label: '6 Mos' },
+                  { val: 12, unit: 'MONTHS' as IntervalUnit, label: '1 Year' },
+                ].map((preset) => (
+                  <button
+                    type="button"
+                    key={preset.label}
+                    onClick={() => handleIntervalChange(preset.val, preset.unit)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-colors min-h-[32px] ${
+                      intervalValue === preset.val && intervalUnit === preset.unit
+                        ? 'bg-blue-100 text-blue-800 border-blue-300 font-bold'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Quick interval presets */}
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[11px] text-gray-500">Quick adjust:</span>
-              {[
-                { val: 3, unit: 'MONTHS' as IntervalUnit, label: '3 Mos' },
-                { val: 6, unit: 'MONTHS' as IntervalUnit, label: '6 Mos' },
-                { val: 12, unit: 'MONTHS' as IntervalUnit, label: '1 Year' },
-              ].map(preset => (
-                <button
-                  type="button"
-                  key={preset.label}
-                  onClick={() => handleIntervalChange(preset.val, preset.unit)}
-                  className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${
-                    intervalValue === preset.val && intervalUnit === preset.unit
-                      ? 'bg-blue-100 text-blue-800 border-blue-300 font-bold'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Modal Action Footer */}
+        <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
 
-          {/* Footer buttons */}
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-800 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !name.trim() || !phone.trim()}
-              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed shadow-sm transition-all flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving Customer...</span>
-                </>
-              ) : (
-                <span>Save Customer & Start Cycle</span>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            isLoading={isSubmitting}
+            disabled={!name.trim() || !phone.trim()}
+          >
+            Save Customer & Start Cycle
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -13,6 +13,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   showCloseButton?: boolean;
 }
 
@@ -24,9 +25,11 @@ export function Modal({
   icon,
   children,
   footer,
-  maxWidth = 'lg',
+  maxWidth,
+  size,
   showCloseButton = true,
 }: ModalProps) {
+  const effectiveMaxWidth = size || maxWidth || 'lg';
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll when modal is open
@@ -78,7 +81,7 @@ export function Modal({
           'w-full bg-white shadow-2xl flex flex-col overflow-hidden',
           // Mobile BottomSheet styles
           'rounded-t-3xl sm:rounded-2xl max-h-[90vh] sm:max-h-[85vh] animate-slide-up sm:animate-none',
-          maxWidths[maxWidth]
+          maxWidths[effectiveMaxWidth]
         )}
       >
         {/* Mobile drag handle indicator */}

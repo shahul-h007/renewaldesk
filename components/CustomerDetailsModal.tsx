@@ -12,8 +12,11 @@ import {
 import { UrgencyBadge, StatusBadge } from '@/components/Badge';
 import { calculateDueStatus, formatReadableDate } from '@/lib/due-date-engine';
 import { formatINR } from '@/lib/format';
+import { Modal } from './ui/Modal';
+import { Input } from './ui/Input';
+import { Button } from './ui/Button';
+import { useToast } from './ui/Toast';
 import {
-  X,
   User,
   Phone,
   Mail,
@@ -44,6 +47,7 @@ export function CustomerDetailsModal({
   onCustomerUpdated,
 }: CustomerDetailsModalProps) {
   const { assets, services, updateCustomer, business } = useRenewalDesk();
+  const toast = useToast();
 
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -59,8 +63,6 @@ export function CustomerDetailsModal({
 
   // Copy feedback state
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const [showManualCopy, setShowManualCopy] = useState(false);
 
   // Save feedback state
   const [isSaving, setIsSaving] = useState(false);
@@ -80,8 +82,6 @@ export function CustomerDetailsModal({
       setNotes(customer.notes || '');
       setIsEditing(false);
       setCopyStatus('idle');
-      setCopyError(null);
-      setShowManualCopy(false);
       setSaveError(null);
     }
   }, [customer]);
@@ -97,21 +97,17 @@ export function CustomerDetailsModal({
 
   const handleCopyAddress = async () => {
     if (!formattedAddress) {
-      setCopyStatus('error');
-      setCopyError('No address details recorded for this customer.');
+      toast.warning('No address details recorded for this customer.');
       return;
     }
 
-    setCopyError(null);
     const result = await copyToClipboard(formattedAddress);
     if (result.success) {
       setCopyStatus('copied');
-      setShowManualCopy(false);
+      toast.success('Address copied to clipboard!');
       setTimeout(() => setCopyStatus('idle'), 2500);
     } else {
-      setCopyStatus('error');
-      setCopyError(result.error || 'Clipboard copy failed. Use manual copy below.');
-      setShowManualCopy(true);
+      toast.error(result.error || 'Clipboard copy failed.');
     }
   };
 
@@ -141,6 +137,7 @@ export function CustomerDetailsModal({
         onCustomerUpdated(updatedCust);
       }
       setIsEditing(false);
+      toast.success('Customer details updated successfully!');
     } catch (err: any) {
       setSaveError(err?.message || 'Failed to update customer details.');
     } finally {
@@ -149,383 +146,276 @@ export function CustomerDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
-              {customer.name.slice(0, 2).toUpperCase()}
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={customer.name}
+      description={`Customer registered on ${customer.createdAt}`}
+      size="lg"
+    >
+      <div className="space-y-5">
+        {/* Save Error Alert */}
+        {saveError && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2.5 shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-gray-900">{customer.name}</h2>
-                <span className="text-[11px] text-gray-500 font-normal">
-                  Added on {customer.createdAt}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
-                <span>{customer.phone}</span>
-                {customer.email && <span>• {customer.email}</span>}
-              </p>
+              <p className="font-bold text-red-900">Failed to save changes</p>
+              <p className="text-red-700 mt-0.5">{saveError}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {!isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 shadow-2xs transition-colors"
-                title="Edit customer details & address"
+        )}
+
+        {isEditing ? (
+          /* ============================================================== */
+          /* EDIT MODE FORM */
+          /* ============================================================== */
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <Input
+                label="Customer Name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+
+              <Input
+                label="Phone Number"
+                required
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+
+              <div className="sm:col-span-2">
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. customer@example.com"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <Input
+                  label="Street / Flat / House"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. Flat 4B, Skyline Ivy Apartments"
+                />
+              </div>
+
+              <Input
+                label="Locality / Area"
+                value={locality}
+                onChange={(e) => setLocality(e.target.value)}
+                placeholder="e.g. Edappally"
+              />
+
+              <Input
+                label="Landmark"
+                value={landmark}
+                onChange={(e) => setLandmark(e.target.value)}
+                placeholder="e.g. Near Metro Pillar 380"
+              />
+
+              <Input
+                label="City / Town"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. Kochi"
+              />
+
+              <Input
+                label="PIN Code"
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value)}
+                placeholder="e.g. 682024"
+              />
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                  Internal Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Customer prefers morning service before 11 AM"
+                  className="w-full px-3.5 py-2.5 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={() => setIsEditing(false)}
+                disabled={isSaving}
               >
-                <Edit2 className="w-3.5 h-3.5" />
-                <span>Edit</span>
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
-          {saveError && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2.5 shadow-2xs">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-red-900">Failed to save changes</p>
-                <p className="text-red-700 mt-0.5">{saveError}</p>
-              </div>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                isLoading={isSaving}
+                leftIcon={Save}
+              >
+                Save Details
+              </Button>
             </div>
-          )}
-
-          {isEditing ? (
-            /* Edit Form */
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          </form>
+        ) : (
+          /* ============================================================== */
+          /* VIEW MODE */
+          /* ============================================================== */
+          <div className="space-y-5">
+            {/* Quick Contact & Address Card */}
+            <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Customer Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  />
+                  <p className="text-xs text-gray-500 font-medium">Contact Phone</p>
+                  <p className="text-sm font-bold text-gray-900 mt-0.5">{customer.phone}</p>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number *</label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Email Address <span className="text-gray-400 font-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. customer@example.com"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  />
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors shadow-2xs min-h-[36px]"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Call</span>
+                  </a>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                    leftIcon={Edit2}
+                    className="min-h-[36px]"
+                  >
+                    Edit
+                  </Button>
                 </div>
               </div>
 
-              {/* Address Fields */}
-              <div className="pt-3 border-t border-gray-100">
-                <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Customer Address</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Street / Flat / House <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="e.g. Flat 4B, SkyLine Ivy"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Locality / Area <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={locality}
-                      onChange={(e) => setLocality(e.target.value)}
-                      placeholder="e.g. Edappally"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Landmark <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={landmark}
-                      onChange={(e) => setLandmark(e.target.value)}
-                      placeholder="e.g. Near Lulu Mall"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      City / Town <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="e.g. Kochi"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      PIN Code <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={pincode}
-                      onChange={(e) => setPincode(e.target.value)}
-                      placeholder="e.g. 682024"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Notes / Instructions <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="e.g. Gate code 1234, call before arriving"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+              {/* Full Address Block */}
+              <div className="pt-3 border-t border-gray-200/60">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Service Address</span>
+                  </p>
 
-              {/* Form Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  disabled={isSaving}
-                  className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-800 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
-                </button>
-              </div>
-            </form>
-          ) : (
-            /* View Mode */
-            <>
-              {/* Address Card */}
-              <div className="bg-gray-50/75 border border-gray-200/80 rounded-xl p-4.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Customer Address</span>
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    {/* Copy Address Button */}
-                    <button
-                      onClick={handleCopyAddress}
-                      disabled={!formattedAddress}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 shadow-2xs transition-colors"
-                      title={formattedAddress ? 'Copy formatted address to clipboard' : 'No address to copy'}
-                    >
-                      {copyStatus === 'copied' ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700 font-bold">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5 text-gray-500" />
-                          <span>Copy Address</span>
-                        </>
-                      )}
-                    </button>
+                  <div className="flex items-center gap-1.5">
+                    {formattedAddress && (
+                      <button
+                        type="button"
+                        onClick={handleCopyAddress}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-gray-600 hover:bg-white hover:text-gray-900 transition-colors"
+                      >
+                        {copyStatus === 'copied' ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700 font-bold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    )}
 
-                    {/* Open in Maps Button */}
-                    {canOpenInMaps && mapsUrl ? (
+                    {canOpenInMaps && mapsUrl && (
                       <a
                         href={mapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 shadow-2xs transition-colors"
-                        title="Open in Google Maps in a new tab"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
                       >
-                        <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Open in Maps</span>
-                        <ExternalLink className="w-3 h-3 text-blue-400" />
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Maps</span>
                       </a>
-                    ) : (
-                      <span
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 bg-gray-100 border border-gray-200 cursor-not-allowed"
-                        title="Add address, locality, or city to open in Google Maps"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-gray-400" />
-                        <span>Open in Maps</span>
-                      </span>
                     )}
                   </div>
                 </div>
 
-                {formattedAddress ? (
-                  <div className="space-y-1.5 text-xs text-gray-700">
-                    <p className="font-medium text-gray-900 leading-relaxed text-sm">
-                      {formattedAddress}
-                    </p>
-                    {/* Detailed address tags if available */}
-                    <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-gray-500">
-                      {customer.locality && (
-                        <span className="px-2 py-0.5 rounded bg-white border border-gray-200">
-                          Locality: <strong className="text-gray-700">{customer.locality}</strong>
-                        </span>
-                      )}
-                      {customer.landmark && (
-                        <span className="px-2 py-0.5 rounded bg-white border border-gray-200">
-                          Landmark: <strong className="text-gray-700">{customer.landmark}</strong>
-                        </span>
-                      )}
-                      {customer.city && (
-                        <span className="px-2 py-0.5 rounded bg-white border border-gray-200">
-                          City: <strong className="text-gray-700">{customer.city}</strong>
-                        </span>
-                      )}
-                      {customer.pincode && (
-                        <span className="px-2 py-0.5 rounded bg-white border border-gray-200">
-                          PIN: <strong className="text-gray-700">{customer.pincode}</strong>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400 italic py-1">
-                    No address saved. Click &quot;Edit&quot; above to add an address, locality, or landmark.
-                  </div>
-                )}
-
-                {/* Manual copy fallback if clipboard API was blocked */}
-                {showManualCopy && (
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1.5">
-                    <p className="font-semibold text-amber-900">
-                      Browser clipboard access was denied. You can select and copy the address below:
-                    </p>
-                    <textarea
-                      readOnly
-                      rows={2}
-                      value={formattedAddress}
-                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                      className="w-full p-2 bg-white border border-amber-300 rounded text-gray-800 font-mono text-xs outline-none"
-                    />
-                  </div>
-                )}
+                <p className="text-xs text-gray-800 leading-relaxed font-medium">
+                  {formattedAddress || (
+                    <span className="text-gray-400 italic">No address provided</span>
+                  )}
+                </p>
               </div>
 
-              {/* Customer Notes */}
               {customer.notes && (
-                <div className="p-3.5 bg-gray-50 border border-gray-200/80 rounded-xl text-xs">
-                  <span className="font-semibold text-gray-700">Notes:</span>{' '}
-                  <span className="text-gray-600">{customer.notes}</span>
+                <div className="pt-2 border-t border-gray-200/60 text-xs">
+                  <span className="text-gray-400 font-semibold block mb-0.5">Notes:</span>
+                  <p className="text-gray-700">{customer.notes}</p>
                 </div>
               )}
+            </div>
 
-              {/* Appliances & Assets */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <Building className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Registered Appliances ({custAssets.length})</span>
-                </h4>
-                {custAssets.length > 0 ? (
-                  <div className="space-y-2">
-                    {custAssets.map(asset => (
+            {/* Registered Appliances & Service Cycles */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                <span>Appliances & Service Cadence ({custAssets.length})</span>
+              </h4>
+
+              {custAssets.length > 0 ? (
+                <div className="space-y-2">
+                  {custAssets.map((asset) => {
+                    const assetService = custServices.find((s) => s.assetId === asset.id) || custServices[0];
+                    const dueInfo = assetService ? calculateDueStatus(assetService.nextDueDate) : null;
+
+                    return (
                       <div
                         key={asset.id}
-                        className="p-3 bg-white border border-gray-200 rounded-xl flex items-center justify-between text-xs"
+                        className="p-3.5 bg-white rounded-xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div>
-                          <p className="font-semibold text-gray-900">
-                            {asset.name} {asset.capacity ? `(${asset.capacity})` : ''}
+                          <p className="text-xs font-bold text-gray-900">
+                            {asset.name} {asset.capacity && `(${asset.capacity})`}
                           </p>
                           <p className="text-[11px] text-gray-500 mt-0.5">
-                            {asset.model ? `Model: ${asset.model}` : ''}
-                            {asset.location ? ` • Location: ${asset.location}` : ''}
+                            {assetService?.serviceName || 'Periodic Maintenance'}
+                            {asset.location && ` • ${asset.location}`}
                           </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 italic">No appliances listed.</p>
-                )}
-              </div>
 
-              {/* Service Schedules */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Service Schedules ({custServices.length})</span>
-                </h4>
-                {custServices.length > 0 ? (
-                  <div className="space-y-2">
-                    {custServices.map(service => {
-                      const dueInfo = calculateDueStatus(service.nextDueDate);
-                      return (
-                        <div
-                          key={service.id}
-                          className="p-3 bg-white border border-gray-200 rounded-xl flex items-center justify-between text-xs"
-                        >
-                          <div>
-                            <p className="font-semibold text-gray-900">{service.serviceName}</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5">
-                              Due: <span className="font-medium text-gray-700">{dueInfo.formattedDue}</span> • Fee: {formatINR(service.serviceAmount)}
-                            </p>
-                          </div>
+                        {dueInfo && (
                           <div className="flex items-center gap-2">
                             <UrgencyBadge urgency={dueInfo.urgency} customLabel={dueInfo.badgeLabel} />
-                            <StatusBadge status={service.followUpStatus} />
+                            <span className="text-xs font-semibold text-gray-700">
+                              Due: {dueInfo.formattedDue}
+                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 italic">No active service records.</p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic p-3 bg-gray-50 rounded-xl">
+                  No registered appliances.
+                </p>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-end">
+              <Button variant="outline" size="md" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

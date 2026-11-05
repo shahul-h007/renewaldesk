@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, AlertCircle, Info, X, Undo2 } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -12,6 +12,10 @@ export interface ToastItem {
   title?: string;
   message: string;
   duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ToastContextValue {
@@ -20,17 +24,25 @@ interface ToastContextValue {
   error: (message: string, title?: string) => void;
   warning: (message: string, title?: string) => void;
   info: (message: string, title?: string) => void;
+  undo: (message: string, onUndo: () => void, title?: string, duration?: number) => void;
   dismiss: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+const noopToast: ToastContextValue = {
+  showToast: () => {},
+  success: () => {},
+  error: () => {},
+  warning: () => {},
+  info: () => {},
+  undo: () => {},
+  dismiss: () => {},
+};
+
 export function useToast(): ToastContextValue {
   const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
+  return context || noopToast;
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -41,9 +53,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    ({ type, title, message, duration = 4000 }: Omit<ToastItem, 'id'>) => {
+    ({ type, title, message, duration = 4000, action }: Omit<ToastItem, 'id'>) => {
       const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const newToast: ToastItem = { id, type, title, message, duration };
+      const newToast: ToastItem = { id, type, title, message, duration, action };
 
       setToasts((prev) => [...prev, newToast]);
 
@@ -76,8 +88,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [showToast]
   );
 
+  const undo = useCallback(
+    (message: string, onUndo: () => void, title?: string, duration: number = 5000) => {
+      showToast({
+        type: 'info',
+        title: title || 'Status Updated',
+        message,
+        duration,
+        action: {
+          label: 'Undo',
+          onClick: onUndo,
+        },
+      });
+    },
+    [showToast]
+  );
+
   return (
-    <ToastContext.Provider value={{ showToast, success, error, warning, info, dismiss }}>
+    <ToastContext.Provider value={{ showToast, success, error, warning, info, undo, dismiss }}>
       {children}
       {/* Toast Render Container */}
       <div
@@ -104,7 +132,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={toast.id}
               role={toast.type === 'error' ? 'alert' : 'status'}
               className={cn(
-                'pointer-events-auto flex items-start gap-3 p-3.5 sm:p-4 rounded-xl border shadow-lg backdrop-blur-xs transition-all duration-200 animate-slide-up w-full max-w-sm sm:w-80',
+                'pointer-events-auto flex items-start gap-3 p-3.5 sm:p-4 rounded-xl border shadow-lg backdrop-blur-xs transition-all duration-200 animate-slide-up w-full max-w-sm sm:w-84',
                 borderColors[toast.type]
               )}
             >
@@ -118,6 +146,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <p className="text-xs leading-snug font-medium break-words">
                   {toast.message}
                 </p>
+
+                {toast.action && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast.action?.onClick();
+                        dismiss(toast.id);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 shadow-2xs transition-all active:scale-95"
+                    >
+                      <Undo2 className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{toast.action.label}</span>
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 type="button"

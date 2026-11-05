@@ -11,6 +11,7 @@ import {
   createCustomerInDb,
   updateCustomerInDb,
   archiveCustomerInDb,
+  reactivateCustomerInDb,
   importCustomersFromCSVInDb,
   updateFollowUpStatusInDb,
   markServiceCompletedInDb,
@@ -43,6 +44,7 @@ interface RenewalDeskContextType {
   ) => Promise<{ success: boolean; error?: string; customerId?: string; warning?: string }>;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
+  restoreCustomer?: (id: string) => Promise<{ success: boolean; error?: string }>;
   updateFollowUpStatus: (serviceId: string, status: FollowUpStatus) => void;
   markServiceCompleted: (
     serviceId: string,
@@ -549,6 +551,20 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
     }
   };
 
+  const restoreCustomer = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (isDatabaseMode && authBiz) {
+        await reactivateCustomerInDb(authBiz.id, id);
+        await reloadFromDb();
+        return { success: true };
+      }
+      return { success: true };
+    } catch (err: any) {
+      void reportMutationFailure('Reactivating customer', err);
+      return { success: false, error: err?.message || 'Failed to restore customer' };
+    }
+  };
+
   const updateFollowUpStatus = (serviceId: string, status: FollowUpStatus) => {
     setServices(prev => prev.map(s => {
       if (s.id !== serviceId) return s;
@@ -954,6 +970,7 @@ export function RenewalDeskProvider({ children }: { children: React.ReactNode })
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        restoreCustomer,
         updateFollowUpStatus,
         markServiceCompleted,
         importCustomersFromCSV,

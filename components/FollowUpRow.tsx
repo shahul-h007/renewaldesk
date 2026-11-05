@@ -9,6 +9,7 @@ import { WhatsAppModal } from './WhatsAppModal';
 import { CompleteServiceModal } from './CompleteServiceModal';
 import { CustomerDetailsModal } from './CustomerDetailsModal';
 import { Button } from './ui/Button';
+import { useToast } from './ui/Toast';
 import {
   Phone,
   MessageSquare,
@@ -43,6 +44,7 @@ export function FollowUpRow({
   onOpenComplete,
 }: FollowUpRowProps) {
   const { updateFollowUpStatus, business } = useRenewalDesk();
+  const toast = useToast();
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -56,16 +58,42 @@ export function FollowUpRow({
   const handleStatusChange = (newStatus: FollowUpStatus) => {
     setShowMoreMenu(false);
     if (newStatus === 'COMPLETED') {
+      // Completed is excluded from automatic undo toast because it has its own dedicated modal flow
       if (onOpenComplete) {
         onOpenComplete();
       } else {
         setShowCompleteModal(true);
       }
     } else {
+      const previousStatus = service.followUpStatus;
       if (onUpdateStatus) {
         onUpdateStatus(newStatus);
       } else {
         updateFollowUpStatus(service.id, newStatus);
+      }
+
+      const statusLabels: Record<FollowUpStatus, string> = {
+        NOT_CONTACTED: 'Not Contacted',
+        CONTACTED: 'Contacted',
+        REPLIED: 'Customer Replied',
+        BOOKED: 'Booked',
+        COMPLETED: 'Completed',
+        NO_RESPONSE: 'No Response',
+        NOT_INTERESTED: 'Not Interested',
+      };
+
+      try {
+        toast.undo(
+          `${customer.name} marked as ${statusLabels[newStatus] || newStatus}`,
+          () => {
+            if (onUpdateStatus) onUpdateStatus(previousStatus);
+            else updateFollowUpStatus(service.id, previousStatus);
+          },
+          'Status Updated',
+          5000
+        );
+      } catch {
+        // Fallback gracefully if used in non-toast contexts
       }
     }
   };

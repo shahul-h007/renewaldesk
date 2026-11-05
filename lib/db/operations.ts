@@ -391,6 +391,22 @@ export async function reactivateCustomerInDb(businessId: string, customerId: str
 }
 
 /**
+ * Fetch archived customers for the active business workspace.
+ */
+export async function fetchArchivedCustomersInDb(businessId: string): Promise<Customer[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', businessId)
+    .not('archived_at', 'is', null)
+    .order('archived_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(mapDbCustomerToApp);
+}
+
+/**
  * Bulk import normalized customers, assets, and service schedules from CSV rows into the database.
  */
 export interface CsvImportOutcome {
