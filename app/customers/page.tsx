@@ -120,18 +120,14 @@ export default function CustomersPage() {
     setCustomerToArchive(null);
     deleteCustomer(cust.id);
 
-    toast.show({
-      title: 'Customer Archived',
-      message: `${cust.name} was archived. Reminders paused.`,
-      type: 'info',
-      duration: 5000,
-      action: {
-        label: 'Undo',
-        onClick: async () => {
-          await handleRestoreCustomer(cust);
-        },
+    toast.undo(
+      `${cust.name} was archived. Reminders paused.`,
+      () => {
+        void handleRestoreCustomer(cust);
       },
-    });
+      'Customer Archived',
+      5000
+    );
   };
 
   const handleRestoreCustomer = async (cust: Customer) => {

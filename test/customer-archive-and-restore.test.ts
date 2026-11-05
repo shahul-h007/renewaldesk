@@ -171,7 +171,7 @@ console.log('--- Suite 1: Database Archive & Restore Lifecycle ---');
   const appService = mapDbScheduleToApp(
     activeSchedule as any,
     activeReminder as any,
-    [{ id: 'cat-1', name: 'RO Purifier Maintenance', intervalMonths: 6, typicalPrice: 1500 }]
+    [{ id: 'cat-1', name: 'RO Purifier Maintenance', intervalValue: 6, intervalUnit: 'MONTHS', defaultIntervalMonths: 6, isActive: true, typicalPrice: 1500 }]
   );
 
   assert.equal(appService.customerId, custId);
@@ -236,6 +236,7 @@ console.log('\n--- Suite 3: Local Demo Store Archive Pool & Restore ---');
       id: 'cust-demo-1',
       name: 'Rohan Mehra',
       phone: '9898989898',
+      address: 'Flat 12B, Marine Drive, Kochi',
       createdAt: '2026-01-01',
     },
   ];

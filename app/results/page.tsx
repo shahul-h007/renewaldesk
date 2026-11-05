@@ -4,25 +4,26 @@ import React, { useState, useMemo } from 'react';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 import { formatReadableDate } from '@/lib/due-date-engine';
 import {
   Sparkles,
-  DollarSign,
   Calendar,
   CheckCircle2,
   AlertTriangle,
   Users,
   Clock,
-  ArrowRight,
-  ShieldCheck,
   TrendingUp,
+  ShieldCheck,
 } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 import { formatAddressSummary } from '@/lib/address-utils';
 import { calculateResultsAnalytics, AnalyticsPeriod } from '@/lib/analytics-utils';
 
 export default function ResultsPage() {
-  const { services, customers, serviceHistory, business, isLoadingDb, isLoaded } = useRenewalDesk();
+  const { services, customers, serviceHistory, business, isLoaded } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState<AnalyticsPeriod>('ALL_TIME');
 
@@ -71,18 +72,19 @@ export default function ResultsPage() {
     { id: 'THIS_QUARTER', label: 'This Quarter' },
   ];
 
-  const dateSpanText = analytics.bounds.startDate && analytics.bounds.endDate
-    ? `${formatReadableDate(analytics.bounds.startDate)} — ${formatReadableDate(analytics.bounds.endDate)}`
-    : 'All historical records';
+  const dateSpanText =
+    analytics.bounds.startDate && analytics.bounds.endDate
+      ? `${formatReadableDate(analytics.bounds.startDate)} — ${formatReadableDate(analytics.bounds.endDate)}`
+      : 'All historical records';
 
   return (
     <AppShell
       title="Recovered Revenue & ROI"
       subtitle="Track the exact money recovered by bringing past customers back for repeat service."
     >
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-7xl mx-auto">
         {/* Date Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-xs">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-500" />
             <span className="text-xs font-semibold text-gray-700">Reporting Period:</span>
@@ -96,7 +98,7 @@ export default function ResultsPage() {
                 <button
                   key={opt.id}
                   onClick={() => setSelectedPeriod(opt.id)}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-lg transition-all min-h-[36px] ${
                     active
                       ? 'bg-white text-gray-900 shadow-xs font-semibold'
                       : 'text-gray-600 hover:text-gray-900'
@@ -119,7 +121,7 @@ export default function ResultsPage() {
                 Confirmed Recovered Revenue ({analytics.bounds.label})
               </span>
               <div className="flex items-baseline gap-3 flex-wrap">
-                <span suppressHydrationWarning className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
+                <span suppressHydrationWarning className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white font-mono">
                   {business.currency || '₹'}{formatINR(analytics.confirmedRevenue)}
                 </span>
                 <span className="text-xs sm:text-sm font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
@@ -131,23 +133,25 @@ export default function ResultsPage() {
               </p>
             </div>
 
-            <div className="relative z-10 pt-6 mt-4 border-t border-emerald-800/60 flex items-center justify-between text-xs text-emerald-200">
-              <span>Avg. Ticket Size: <strong className="text-white font-mono">{business.currency || '₹'}{formatINR(analytics.averageTicketSize)}</strong></span>
-              <span>Distinct Customers Served: <strong className="text-white font-mono">{analytics.completedCustomersCount}</strong></span>
+            <div className="relative z-10 pt-6 mt-4 border-t border-emerald-800/60 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-200">
+              <span>
+                Avg. Ticket Size: <strong className="text-white font-mono">{business.currency || '₹'}{formatINR(analytics.averageTicketSize)}</strong>
+              </span>
+              <span>
+                Distinct Customers Served: <strong className="text-white font-mono">{analytics.completedCustomersCount}</strong>
+              </span>
             </div>
           </div>
 
           {/* Projected Due Pipeline Card */}
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <Card className="flex flex-col justify-between space-y-4 p-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
                   <TrendingUp className="w-3.5 h-3.5" />
                   Due Pipeline
                 </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
-                  Estimated
-                </span>
+                <Badge variant="neutral">Estimated</Badge>
               </div>
               <div>
                 <span suppressHydrationWarning className="text-2xl sm:text-3xl font-extrabold text-gray-900 block font-mono">
@@ -159,7 +163,7 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1.5 text-xs text-gray-600">
+            <div className="p-3.5 bg-gray-50 rounded-xl space-y-2 text-xs text-gray-600">
               <div className="flex justify-between">
                 <span>Cycles due in period:</span>
                 <strong className="text-gray-900 font-mono">{analytics.schedulesDueInPeriodCount}</strong>
@@ -168,17 +172,17 @@ export default function ResultsPage() {
                 <span>Distinct customers:</span>
                 <strong className="text-gray-900 font-mono">{analytics.customersDueInPeriodCount}</strong>
               </div>
-              <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-200">
+              <p className="text-[10px] text-gray-400 pt-1.5 border-t border-gray-200">
                 Calculated from catalog service rates. Confirmed once the technician marks the service completed.
               </p>
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Operational KPI Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Customer Base & Cycle Coverage */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2 shadow-xs">
+          <Card className="p-5 space-y-2">
             <div className="flex items-center justify-between text-gray-500">
               <span className="text-xs font-semibold uppercase tracking-wider">Active Cycle Coverage</span>
               <Users className="w-4 h-4 text-blue-600" />
@@ -187,17 +191,17 @@ export default function ResultsPage() {
               <span className="text-2xl font-extrabold text-gray-900 font-mono">
                 {analytics.activeCycleCoveragePct}%
               </span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-mono">
                 ({analytics.customersWithActiveCycles} of {analytics.totalCustomers})
               </span>
             </div>
             <p className="text-[11px] text-gray-500 leading-tight">
               Customers enrolled in recurring service cycles. Multi-asset customers are counted once.
             </p>
-          </div>
+          </Card>
 
           {/* Customers Due in Period */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2 shadow-xs">
+          <Card className="p-5 space-y-2">
             <div className="flex items-center justify-between text-gray-500">
               <span className="text-xs font-semibold uppercase tracking-wider">Customers Due</span>
               <Clock className="w-4 h-4 text-amber-600" />
@@ -206,30 +210,40 @@ export default function ResultsPage() {
               <span className="text-2xl font-extrabold text-gray-900 font-mono">
                 {analytics.customersDueInPeriodCount}
               </span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-mono">
                 ({analytics.schedulesDueInPeriodCount} {analytics.schedulesDueInPeriodCount === 1 ? 'cycle' : 'cycles'})
               </span>
             </div>
             <p className="text-[11px] text-gray-500 leading-tight">
               Distinct customers due in {analytics.bounds.label.toLowerCase()}.
             </p>
-          </div>
+          </Card>
 
           {/* Overdue Attention */}
-          <div className={`rounded-2xl border p-5 space-y-2 shadow-xs ${
-            analytics.overdueCustomersInPeriodCount > 0 ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-gray-200'
-          }`}>
+          <Card
+            className={`p-5 space-y-2 ${
+              analytics.overdueCustomersInPeriodCount > 0 ? 'bg-amber-50/40 border-amber-200' : ''
+            }`}
+          >
             <div className="flex items-center justify-between text-gray-500">
-              <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">Overdue Follow-ups</span>
-              <AlertTriangle className={`w-4 h-4 ${analytics.overdueCustomersInPeriodCount > 0 ? 'text-amber-600' : 'text-gray-400'}`} />
+              <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">
+                Overdue Follow-ups
+              </span>
+              <AlertTriangle
+                className={`w-4 h-4 ${
+                  analytics.overdueCustomersInPeriodCount > 0 ? 'text-amber-600' : 'text-gray-400'
+                }`}
+              />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-extrabold font-mono ${
-                analytics.overdueCustomersInPeriodCount > 0 ? 'text-amber-900' : 'text-gray-900'
-              }`}>
+              <span
+                className={`text-2xl font-extrabold font-mono ${
+                  analytics.overdueCustomersInPeriodCount > 0 ? 'text-amber-900' : 'text-gray-900'
+                }`}
+              >
                 {analytics.overdueCustomersInPeriodCount}
               </span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-mono">
                 ({analytics.overdueSchedulesInPeriodCount} overdue)
               </span>
             </div>
@@ -238,10 +252,10 @@ export default function ResultsPage() {
                 ? 'Past-due services not yet completed.'
                 : 'All due cycles in this period are up to date!'}
             </p>
-          </div>
+          </Card>
 
           {/* Schedule Health / Invalid Dates */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2 shadow-xs">
+          <Card className="p-5 space-y-2">
             <div className="flex items-center justify-between text-gray-500">
               <span className="text-xs font-semibold uppercase tracking-wider">Schedule Integrity</span>
               {analytics.schedulesWithInvalidDueDateCount > 0 ? (
@@ -252,9 +266,11 @@ export default function ResultsPage() {
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-gray-900 font-mono">
-                {analytics.schedulesWithInvalidDueDateCount === 0 ? '100%' : `${analytics.schedulesWithInvalidDueDateCount} issues`}
+                {analytics.schedulesWithInvalidDueDateCount === 0
+                  ? '100%'
+                  : `${analytics.schedulesWithInvalidDueDateCount} issues`}
               </span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-mono">
                 {analytics.schedulesWithInvalidDueDateCount === 0 ? 'valid dates' : 'missing due date'}
               </span>
             </div>
@@ -263,24 +279,24 @@ export default function ResultsPage() {
                 ? 'Missing due dates are safely excluded from due/overdue counts.'
                 : 'All recurring service schedules have valid calendar due dates.'}
             </p>
-          </div>
+          </Card>
         </div>
 
         {/* 5-Stage Customer Recovery Funnel */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <Card>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-gray-900">The 5-Stage Customer Recovery Funnel</h2>
-              <p className="text-xs text-gray-500">
+              <CardTitle>The 5-Stage Customer Recovery Funnel</CardTitle>
+              <CardDescription>
                 How service cycles due in <span className="font-semibold text-gray-700">{analytics.bounds.label}</span> convert from reminder to payment.
-              </p>
+              </CardDescription>
             </div>
-            <span className="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-600 self-start sm:self-auto font-mono">
+            <Badge variant="neutral">
               Baseline: {analytics.schedulesDueInPeriodCount} due {analytics.schedulesDueInPeriodCount === 1 ? 'cycle' : 'cycles'}
-            </span>
-          </div>
+            </Badge>
+          </CardHeader>
 
-          <div className="space-y-4">
+          <CardContent className="space-y-4">
             {analytics.funnelStages.map((stage) => (
               <div key={stage.key} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
@@ -302,76 +318,82 @@ export default function ResultsPage() {
                   />
                 </div>
 
-                <div className="text-[10px] text-gray-400">
+                <div className="text-[10px] text-gray-400 font-mono">
                   {stage.formulaDescription}
                 </div>
               </div>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Completed Services Log */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Completed Service Log</h2>
-              <p className="text-xs text-gray-500">
+              <CardTitle>Completed Service Log</CardTitle>
+              <CardDescription>
                 Repeat jobs finished in <span className="font-semibold text-gray-700">{analytics.bounds.label}</span> with verified revenue collections.
-              </p>
+              </CardDescription>
             </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+            <Badge variant="success" dot>
               {analytics.completedServicesCount} Completed
-            </span>
-          </div>
+            </Badge>
+          </CardHeader>
 
-          <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden text-xs">
-            {analytics.completedRecordsInPeriod.length > 0 ? (
-              analytics.completedRecordsInPeriod.map((record) => {
-                const customer = customers.find((c) => c.id === record.customerId);
-                const addressStr = customer ? formatAddressSummary(customer) : '';
-                return (
-                  <div key={record.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-gray-900">{customer?.name || 'Customer Record'}</h4>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
-                          COMPLETED
+          <CardContent className="p-0">
+            <div className="divide-y divide-gray-100 text-xs">
+              {analytics.completedRecordsInPeriod.length > 0 ? (
+                analytics.completedRecordsInPeriod.map((record) => {
+                  const customer = customers.find((c) => c.id === record.customerId);
+                  const addressStr = customer ? formatAddressSummary(customer) : '';
+                  return (
+                    <div
+                      key={record.id}
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-gray-900 text-sm">
+                            {customer?.name || 'Customer Record'}
+                          </h4>
+                          <Badge variant="success">COMPLETED</Badge>
+                        </div>
+                        <p className="text-gray-500">
+                          {record.serviceName}
+                          {addressStr ? ` • ${addressStr}` : ''}
+                        </p>
+                        {record.notes && (
+                          <p className="text-[11px] text-gray-400 italic">
+                            {record.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        <span suppressHydrationWarning className="font-bold text-emerald-700 text-base block font-mono">
+                          {business.currency || '₹'}{formatINR(record.feeCharged)}
+                        </span>
+                        <span className="text-[11px] text-gray-500 font-medium">
+                          Completed: {formatReadableDate(record.serviceDate)}
                         </span>
                       </div>
-                      <p className="text-gray-500">
-                        {record.serviceName}{addressStr ? ` • ${addressStr}` : ''}
-                      </p>
-                      {record.notes && (
-                        <p className="text-[11px] text-gray-400 italic">
-                          {record.notes}
-                        </p>
-                      )}
                     </div>
-
-                    <div className="text-left sm:text-right">
-                      <span suppressHydrationWarning className="font-bold text-emerald-700 text-sm block font-mono">
-                        {business.currency || '₹'}{formatINR(record.feeCharged)}
-                      </span>
-                      <span className="text-[11px] text-gray-500 font-medium">
-                        Completed: {formatReadableDate(record.serviceDate)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="py-12 text-center space-y-2">
-                <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto" />
-                <p className="text-xs font-medium text-gray-500">
-                  No services marked completed in {analytics.bounds.label.toLowerCase()}.
-                </p>
-                <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
-                  Mark services completed in the Follow-up Queue to recover revenue and log repeat jobs here.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+                  );
+                })
+              ) : (
+                <div className="py-14 text-center space-y-2">
+                  <CheckCircle2 className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="text-xs font-semibold text-gray-600">
+                    No services marked completed in {analytics.bounds.label.toLowerCase()}.
+                  </p>
+                  <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
+                    Mark services completed in the Today queue to recover revenue and log repeat jobs here.
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );
