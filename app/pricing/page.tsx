@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { BrandLogo } from '@/components/BrandLogo';
 import { useAuth } from '@/lib/auth-context';
 import { PLANS_LIST, BillingPlan, FOUNDING_LIFETIME_MAX_SLOTS } from '@/lib/billing/plans';
+import { buildRazorpayCheckoutOptions } from '@/lib/billing/checkout-options';
 import {
   Check,
   Zap,
@@ -160,57 +161,20 @@ export default function PricingPage() {
       }
 
       // 2. Launch Razorpay Standard Checkout modal
-      const options: any = {
-        key: session.keyId,
-        name: 'RenewalDesk',
-        description: `${plan.name} Plan â€” Up to ${plan.maxActiveCustomers} active customers`,
-        image: '/brand/renewaldesk-logo.svg',
-        prefill: {
-          name: authBiz.name || '',
-          email: user.email || '',
-          contact: authBiz.phone || '',
-        },
-        notes: {
+      const options = buildRazorpayCheckoutOptions({
+        session,
+        plan,
+        customer: {
           businessId: authBiz.id,
-          planId: plan.id,
+          businessName: authBiz.name,
+          businessPhone: authBiz.phone,
+          userEmail: user.email,
         },
-        theme: {
-          color: '#2563eb', // Blue-600
+        onSuccess: verifyPayment,
+        onDismiss: () => {
+          setProcessingPlanId(null);
         },
-        modal: {
-          ondismiss: () => {
-            setProcessingPlanId(null);
-          },
-        },
-      };
-
-      if (session.type === 'order') {
-        // One-time payment (Founding Lifetime)
-        options.order_id = session.orderId;
-        options.amount = session.amount;
-        options.currency = session.currency;
-        options.handler = async (response: any) => {
-          await verifyPayment({
-            businessId: authBiz.id,
-            planId: plan.id,
-            orderId: response.razorpay_order_id,
-            paymentId: response.razorpay_payment_id,
-            signature: response.razorpay_signature,
-          });
-        };
-      } else {
-        // Monthly Recurring Subscription
-        options.subscription_id = session.subscriptionId;
-        options.handler = async (response: any) => {
-          await verifyPayment({
-            businessId: authBiz.id,
-            planId: plan.id,
-            subscriptionId: response.razorpay_subscription_id,
-            paymentId: response.razorpay_payment_id,
-            signature: response.razorpay_signature,
-          });
-        };
-      }
+      });
 
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', (resp: any) => {

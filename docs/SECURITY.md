@@ -74,6 +74,7 @@ RenewalDesk is designed with defense-in-depth and the principle of least privile
 | `SUPABASE_SERVICE_ROLE_KEY` | **Private (Server Only)** | Admin database bypass key | **CRITICAL (Full DB access)** |
 | `NEXT_PUBLIC_SITE_URL` | Public (Client + Server) | Canonical production domain URL | Low (Public) |
 | `RAZORPAY_KEY_ID` | Public (Client + Server) | Razorpay public key ID | Medium (Public ID) |
+| `NEXT_PUBLIC_RAZORPAY_CONFIG_ID` | Public (Client + Server) | Optional Razorpay custom checkout configuration ID | Low (Public ID) |
 | `RAZORPAY_KEY_SECRET` | **Private (Server Only)** | Razorpay API key secret | **HIGH (Merchant API)** |
 | `RAZORPAY_WEBHOOK_SECRET` | **Private (Server Only)** | HMAC SHA256 webhook signature secret | **HIGH (Webhook validation)** |
 | `UPSTASH_REDIS_REST_URL` | **Private (Server Only)** | Distributed rate limiting REST endpoint | Medium |
