@@ -113,7 +113,7 @@ export function Modal({
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
-      className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 overflow-hidden animate-fade-in"
+      className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center bg-slate-900/40 p-0 sm:p-4 overflow-hidden animate-fade-in"
     >
       {/* Modal / BottomSheet Container */}
       <div

@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTutorial } from './TutorialContext';
 import { Button } from './ui/Button';
 import {
   Sparkles,
   ChevronRight,
   ChevronLeft,
-  X,
   AlertCircle,
-  CheckCircle2,
-  HelpCircle,
-  CornerDownRight,
 } from 'lucide-react';
+import {
+  computeCoachPosition,
+  Rect,
+  CoachPositionResult,
+} from '@/lib/tutorial-positioning';
 
 export function TutorialCoach() {
   const {
@@ -25,12 +27,21 @@ export function TutorialCoach() {
     back,
   } = useTutorial();
 
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [targetRect, setTargetRect] = useState<Rect | null>(null);
+  const [modalRect, setModalRect] = useState<Rect | null>(null);
+  const [isTargetInModal, setIsTargetInModal] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [targetMissing, setTargetMissing] = useState(false);
+  const [coachDimensions, setCoachDimensions] = useState({ width: 380, height: 220 });
 
   const coachRef = useRef<HTMLDivElement>(null);
+
+  // Mount hook for SSR safety
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Detect mobile device (<768px) and visualViewport resize for on-screen keyboard
   useEffect(() => {
@@ -63,6 +74,19 @@ export function TutorialCoach() {
     };
   }, []);
 
+  // Measure actual coach card dimensions when rendered
+  useEffect(() => {
+    if (coachRef.current) {
+      const rect = coachRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setCoachDimensions({
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        });
+      }
+    }
+  }, [state.currentLesson, state.currentStep, currentStepConfig, targetMissing]);
+
   // Locate the target element for the current step and scroll it into view
   const updateTargetElement = useCallback(() => {
     if (!isActive || !currentStepConfig) return;
@@ -70,23 +94,56 @@ export function TutorialCoach() {
     const selector = currentStepConfig.targetSelector;
     if (!selector) {
       setTargetRect(null);
+      setModalRect(null);
+      setIsTargetInModal(false);
       setTargetMissing(false);
       return;
     }
 
     const el = document.querySelector(selector);
     if (el) {
-      const rect = el.getBoundingClientRect();
+      const domRect = el.getBoundingClientRect();
+      const rect: Rect = {
+        top: Math.round(domRect.top),
+        left: Math.round(domRect.left),
+        right: Math.round(domRect.right),
+        bottom: Math.round(domRect.bottom),
+        width: Math.round(domRect.width),
+        height: Math.round(domRect.height),
+      };
+
       setTargetRect(rect);
       setTargetMissing(false);
+
+      // Check if target is inside an open modal / dialog
+      const modalEl = el.closest('[role="dialog"], [aria-modal="true"], .modal-container');
+      if (modalEl) {
+        const mDomRect = modalEl.getBoundingClientRect();
+        setModalRect({
+          top: Math.round(mDomRect.top),
+          left: Math.round(mDomRect.left),
+          right: Math.round(mDomRect.right),
+          bottom: Math.round(mDomRect.bottom),
+          width: Math.round(mDomRect.width),
+          height: Math.round(mDomRect.height),
+        });
+        setIsTargetInModal(true);
+      } else {
+        setModalRect(null);
+        setIsTargetInModal(false);
+      }
 
       // Add spotlight highlight class
       el.classList.add('tutorial-target-highlight');
 
-      // Scroll smoothly into view if off-screen
+      // Scroll smoothly into view if off-screen or too close to edges
+      const mobile = window.innerWidth < 768;
+      const minSafeTop = 60;
+      const maxSafeBottom = mobile ? window.innerHeight - 200 : window.innerHeight - 80;
+
       if (
-        rect.top < 60 ||
-        rect.bottom > window.innerHeight - 80 ||
+        rect.top < minSafeTop ||
+        rect.bottom > maxSafeBottom ||
         rect.left < 0 ||
         rect.right > window.innerWidth
       ) {
@@ -94,7 +151,8 @@ export function TutorialCoach() {
       }
     } else {
       setTargetRect(null);
-      // Wait a moment for dynamic rendering before declaring target missing
+      setModalRect(null);
+      setIsTargetInModal(false);
       setTargetMissing(true);
     }
   }, [isActive, currentStepConfig]);
@@ -136,57 +194,36 @@ export function TutorialCoach() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isActive, skip]);
 
-  if (!isActive || !currentStepConfig || !currentLessonConfig) {
+  if (!mounted || !isActive || !currentStepConfig || !currentLessonConfig) {
     return null;
   }
 
   const isFirstStep = state.currentStep === 0;
-  const isLastLesson = state.currentLesson === 6;
-  const isLastStep = state.currentStep === currentStepConfig.totalStepsInLesson - 1;
 
-  // Placement for desktop popover
-  let popoverStyle: React.CSSProperties = {
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
+  // Compute collision-free positioning
+  const positionResult: CoachPositionResult = computeCoachPosition({
+    targetRect,
+    modalRect,
+    coachSize: {
+      width: isMobile ? window.innerWidth - 24 : Math.min(coachDimensions.width || 380, 380),
+      height: coachDimensions.height || 220,
+    },
+    viewport: {
+      width: typeof window !== 'undefined' ? window.innerWidth : 1440,
+      height: typeof window !== 'undefined' ? window.innerHeight : 900,
+      isKeyboardOpen,
+    },
+    preferredPlacement: currentStepConfig.placement || 'bottom',
+  });
+
+  const cardStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: `${positionResult.top}px`,
+    left: `${positionResult.left}px`,
+    zIndex: 9999,
   };
 
-  if (!isMobile && targetRect && !targetMissing) {
-    const popoverWidth = 380;
-    const popoverHeight = 220;
-    const padding = 16;
-
-    let top = targetRect.bottom + padding;
-    let left = targetRect.left + targetRect.width / 2 - popoverWidth / 2;
-
-    if (currentStepConfig.placement === 'top' && targetRect.top > popoverHeight + padding) {
-      top = targetRect.top - popoverHeight - padding;
-    } else if (currentStepConfig.placement === 'right' && targetRect.right + popoverWidth + padding < window.innerWidth) {
-      top = targetRect.top + targetRect.height / 2 - popoverHeight / 2;
-      left = targetRect.right + padding;
-    } else if (currentStepConfig.placement === 'left' && targetRect.left > popoverWidth + padding) {
-      top = targetRect.top + targetRect.height / 2 - popoverHeight / 2;
-      left = targetRect.left - popoverWidth - padding;
-    }
-
-    // Keep within viewport boundaries
-    top = Math.max(16, Math.min(top, window.innerHeight - popoverHeight - 16));
-    left = Math.max(16, Math.min(left, window.innerWidth - popoverWidth - 16));
-
-    popoverStyle = {
-      top: `${top}px`,
-      left: `${left}px`,
-      transform: 'none',
-      position: 'fixed',
-    };
-  }
-
-  // Mobile positioning: bottom sheet normally, flips to top when virtual keyboard is open
-  const mobileSheetPositionClass = isKeyboardOpen
-    ? 'top-3 bottom-auto animate-slide-down'
-    : 'bottom-3 top-auto animate-slide-up';
-
-  return (
+  const coachContent = (
     <>
       {/* Global CSS for spotlight ring */}
       <style jsx global>{`
@@ -201,11 +238,16 @@ export function TutorialCoach() {
         }
       `}</style>
 
-      {/* Subtle backdrop scrim that doesn't block interactions */}
-      <div
-        className="fixed inset-0 z-50 pointer-events-none bg-slate-900/15 backdrop-blur-[1px] transition-opacity duration-300"
-        aria-hidden="true"
-      />
+      {/* Dim backdrop scrim:
+          - When target is inside a modal, DO NOT render the scrim so the modal
+            and its existing backdrop remain completely clear and unblurred.
+          - When target is on regular page, lightly dim without heavy blur. */}
+      {!isTargetInModal && (
+        <div
+          className="fixed inset-0 z-40 pointer-events-none bg-slate-900/15 transition-opacity duration-300"
+          aria-hidden="true"
+        />
+      )}
 
       {/* The Coach Card */}
       <div
@@ -213,11 +255,11 @@ export function TutorialCoach() {
         role="dialog"
         aria-live="polite"
         aria-label="Tutorial Guide"
-        style={isMobile ? undefined : popoverStyle}
-        className={`z-60 bg-white border border-blue-200/90 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 ${
-          isMobile
-            ? `fixed inset-x-3 max-w-lg mx-auto ${mobileSheetPositionClass}`
-            : 'w-[380px] max-w-[90vw]'
+        style={cardStyle}
+        data-tutorial-coach="card"
+        data-placement={positionResult.placement}
+        className={`bg-white border border-blue-200/90 shadow-2xl rounded-2xl overflow-hidden transition-all duration-200 ${
+          isMobile ? 'w-[calc(100vw-24px)] max-w-lg' : 'w-[380px] max-w-[90vw]'
         }`}
       >
         {/* Header: Progress, Title & Skip button */}
@@ -326,4 +368,6 @@ export function TutorialCoach() {
       </div>
     </>
   );
+
+  return createPortal(coachContent, document.body);
 }

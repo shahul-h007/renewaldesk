@@ -510,7 +510,7 @@ export function FollowUpRow({
       {/* MOBILE MORE ACTIONS BOTTOM SHEET / MODAL */}
       {/* ============================================================== */}
       {showMoreMenu && (
-        <div className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
+        <div className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 animate-fade-in">
           <div
             className="fixed inset-0"
             onClick={() => setShowMoreMenu(false)}
