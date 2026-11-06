@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { DropdownPortal } from './ui/DropdownPortal';
 import { Customer, Asset, ServiceRecord, FollowUpStatus } from '@/lib/types';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateDueStatus } from '@/lib/due-date-engine';
@@ -51,6 +53,12 @@ export function FollowUpRow({
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const desktopMoreButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!customer) return null;
 
@@ -384,6 +392,7 @@ export function FollowUpRow({
           {/* Desktop More Menu Button */}
           <div className="relative">
             <button
+              ref={desktopMoreButtonRef}
               type="button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
               data-tutorial={isPracticeCustomer ? 'more-menu-btn' : undefined}
@@ -395,10 +404,12 @@ export function FollowUpRow({
             </button>
 
             {/* Desktop Dropdown */}
-            {showMoreMenu && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowMoreMenu(false)} />
-                <div className="absolute right-0 top-10 z-40 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 text-xs text-gray-700 animate-slide-up">
+            <DropdownPortal
+              isOpen={showMoreMenu}
+              onClose={() => setShowMoreMenu(false)}
+              triggerRef={desktopMoreButtonRef}
+              minWidth={208}
+            >
                   <div className="px-3 py-1 font-bold text-[10px] text-gray-400 uppercase tracking-wider">
                     Customer Details
                   </div>
@@ -499,9 +510,7 @@ export function FollowUpRow({
                   >
                     Not Interested
                   </button>
-                </div>
-              </>
-            )}
+            </DropdownPortal>
           </div>
         </div>
       </div>
@@ -509,8 +518,8 @@ export function FollowUpRow({
       {/* ============================================================== */}
       {/* MOBILE MORE ACTIONS BOTTOM SHEET / MODAL */}
       {/* ============================================================== */}
-      {showMoreMenu && (
-        <div className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 animate-fade-in">
+      {mounted && showMoreMenu && createPortal(
+        <div className="md:hidden fixed inset-0 z-[9990] flex items-end justify-center bg-slate-900/40 animate-fade-in">
           <div
             className="fixed inset-0"
             onClick={() => setShowMoreMenu(false)}
@@ -639,7 +648,8 @@ export function FollowUpRow({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* WhatsApp Modal */}

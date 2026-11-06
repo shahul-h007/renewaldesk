@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { DropdownPortal } from '@/components/ui/DropdownPortal';
 import { HelpTip } from '@/components/ui/HelpTip';
 import { useToast } from '@/components/ui/Toast';
 import { useTutorial } from '@/components/TutorialContext';
@@ -77,6 +78,7 @@ export default function TemplatesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
+  const [actionsAnchorEl, setActionsAnchorEl] = useState<HTMLElement | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastActiveIdRef = useRef<string | null>(null);
@@ -377,14 +379,13 @@ export default function TemplatesPage() {
                 <MoreVertical className="w-4 h-4 text-gray-600" />
               </Button>
 
-              {isMobileActionsOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setIsMobileActionsOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl bg-white border border-gray-200 shadow-lg py-1.5 z-40 text-xs">
-                    <button
+              <DropdownPortal
+                  isOpen={isMobileActionsOpen}
+                  onClose={() => setIsMobileActionsOpen(false)}
+                  triggerRef={actionsAnchorEl}
+                  minWidth={192}
+                >
+                  <button
                       type="button"
                       onClick={() => {
                         setIsMobileActionsOpen(false);
@@ -406,9 +407,7 @@ export default function TemplatesPage() {
                       <RotateCcw className="w-4 h-4 text-gray-500 shrink-0" />
                       <span>Restore Defaults</span>
                     </button>
-                  </div>
-                </>
-              )}
+                </DropdownPortal>
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { Modal } from '@/components/ui/Modal';
+import { DropdownPortal } from '@/components/ui/DropdownPortal';
 import {
   formatCustomerAddress,
   formatAddressSummary,
@@ -69,6 +70,7 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [moreMenuCustomerId, setMoreMenuCustomerId] = useState<string | null>(null);
+  const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [customerToArchive, setCustomerToArchive] = useState<Customer | null>(null);
 
   // Archived customers state
@@ -472,17 +474,22 @@ export default function CustomersPage() {
                           <div className="relative">
                             <button
                               type="button"
-                              onClick={() => setMoreMenuCustomerId(isMenuOpen ? null : cust.id)}
+                              onClick={(e) => {
+                                setMoreMenuAnchorEl(e.currentTarget);
+                                setMoreMenuCustomerId(isMenuOpen ? null : cust.id);
+                              }}
                               className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
                               title="More options"
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
 
-                            {isMenuOpen && (
-                              <>
-                                <div className="fixed inset-0 z-30" onClick={() => setMoreMenuCustomerId(null)} />
-                                <div className="absolute right-0 top-10 z-40 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 text-xs text-gray-700 animate-slide-up">
+                            <DropdownPortal
+                                  isOpen={isMenuOpen}
+                                  onClose={() => setMoreMenuCustomerId(null)}
+                                  triggerRef={moreMenuAnchorEl}
+                                  minWidth={192}
+                                >
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -529,9 +536,7 @@ export default function CustomersPage() {
                                     <Trash2 className="w-3.5 h-3.5" />
                                     <span>Archive Customer</span>
                                   </button>
-                                </div>
-                              </>
-                            )}
+                                </DropdownPortal>
                           </div>
                         </div>
                       </div>

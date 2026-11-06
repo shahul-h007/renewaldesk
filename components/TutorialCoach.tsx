@@ -235,6 +235,8 @@ export function TutorialCoach() {
           box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.25) !important;
           border-radius: 12px !important;
           transition: all 0.2s ease-in-out !important;
+          pointer-events: auto !important;
+          cursor: pointer !important;
         }
       `}</style>
 
