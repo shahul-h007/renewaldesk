@@ -33,6 +33,7 @@ export async function updateSession(request: NextRequest) {
     '/templates',
     '/import',
     '/settings',
+    '/billing',
     '/onboarding',
   ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
