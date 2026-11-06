@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
 import { getRazorpayInstance } from '@/lib/billing/razorpay';
 
 export const dynamic = 'force-dynamic';
@@ -53,8 +54,15 @@ export async function POST(request: Request) {
       console.warn('Razorpay subscription cancellation notice:', razorpayErr?.message);
     }
 
-    // Update in database
-    await supabase
+    // Update in database via service role client (bypasses RLS write restriction)
+    let adminClient: any = supabase;
+    try {
+      adminClient = getServiceRoleSupabaseClient();
+    } catch {
+      // Fallback in local dev/testing
+    }
+
+    await adminClient
       .from('business_subscriptions')
       .update({
         cancel_at_period_end: true,

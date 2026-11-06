@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
 import { getPlanById } from '@/lib/billing/plans';
 import {
   verifyOrderPaymentSignature,
@@ -188,10 +189,37 @@ export async function POST(request: Request) {
         );
       }
 
-    // 5. Grant Entitlement & Update Database
+    // 5. Grant Entitlement & Update Database via Service Role Client
+    let adminClient: any = supabase;
+    try {
+      adminClient = getServiceRoleSupabaseClient();
+    } catch (adminClientErr) {
+      console.warn('Service role client unavailable, falling back to authenticated client:', adminClientErr);
+    }
     if (plan.id === 'founding_lifetime') {
-      // Claim Lifetime Slot via atomic procedure
-      const { data: slotNumber, error: rpcErr } = await supabase.rpc('claim_founding_lifetime_slot', {
+      // Step A: Record transaction in captured state FIRST (enables fail-closed validation in claim_founding_lifetime_slot)
+      const { error: txErr } = await adminClient.from('payment_transactions').upsert({
+        business_id: businessId,
+        user_id: user.id,
+        plan_id: plan.id,
+        billing_type: 'lifetime_purchase',
+        amount_paise: plan.pricePaise,
+        currency: 'INR',
+        status: 'captured',
+        razorpay_order_id: orderId || null,
+        razorpay_payment_id: paymentId,
+        razorpay_signature: signature || null,
+        metadata: {
+          verifiedVia: 'verify_route',
+        },
+      }, { onConflict: 'razorpay_payment_id' });
+
+      if (txErr) {
+        console.error('Error logging captured payment transaction:', txErr);
+      }
+
+      // Step B: Claim Lifetime Slot via atomic procedure (fail-closed, service_role only)
+      const { data: slotNumber, error: rpcErr } = await adminClient.rpc('claim_founding_lifetime_slot', {
         p_business_id: businessId,
         p_user_id: user.id,
         p_order_id: orderId || null,
@@ -209,7 +237,7 @@ export async function POST(request: Request) {
         }
 
         // Fallback upsert if function not yet applied or custom error
-        const { error: upsertErr } = await supabase
+        const { error: upsertErr } = await adminClient
           .from('business_subscriptions')
           .upsert({
             business_id: businessId,
@@ -237,8 +265,8 @@ export async function POST(request: Request) {
         }
       }
 
-      // Record transaction if not already logged
-      await supabase.from('payment_transactions').upsert({
+      // Update transaction metadata with assigned slotNumber
+      await adminClient.from('payment_transactions').upsert({
         business_id: businessId,
         user_id: user.id,
         plan_id: plan.id,
@@ -268,8 +296,26 @@ export async function POST(request: Request) {
     const currentPeriodStart = new Date().toISOString();
     const currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    // 1st attempt: Call atomic RPC function
-    const { error: rpcErr } = await supabase.rpc('activate_recurring_subscription', {
+    // Step A: Record transaction in captured state FIRST (enables fail-closed validation)
+    const { error: txErr } = await adminClient.from('payment_transactions').upsert({
+      business_id: businessId,
+      user_id: user.id,
+      plan_id: plan.id,
+      billing_type: 'monthly_subscription',
+      amount_paise: plan.pricePaise,
+      currency: 'INR',
+      status: 'captured',
+      razorpay_subscription_id: subscriptionId || null,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: signature || null,
+    }, { onConflict: 'razorpay_payment_id' });
+
+    if (txErr) {
+      console.error('Error logging captured recurring payment transaction:', txErr);
+    }
+
+    // Step B: Call atomic RPC function via adminClient (fail-closed, service_role only)
+    const { error: rpcErr } = await adminClient.rpc('activate_recurring_subscription', {
       p_business_id: businessId,
       p_user_id: user.id,
       p_plan_id: plan.id,
@@ -285,8 +331,8 @@ export async function POST(request: Request) {
     if (rpcErr) {
       console.warn('RPC activate_recurring_subscription failed or not present, attempting fallback upsert:', rpcErr.message);
 
-      // Fallback: Direct table upsert (authorized by owner/manager RLS policy)
-      const { error: subErr } = await supabase
+      // Fallback: Direct table upsert via adminClient
+      const { error: subErr } = await adminClient
         .from('business_subscriptions')
         .upsert({
           business_id: businessId,
@@ -315,29 +361,15 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
-
-      // Upsert transaction
-      await supabase.from('payment_transactions').upsert({
-        business_id: businessId,
-        user_id: user.id,
-        plan_id: plan.id,
-        billing_type: 'monthly_subscription',
-        amount_paise: plan.pricePaise,
-        currency: 'INR',
-        status: 'captured',
-        razorpay_subscription_id: subscriptionId || null,
-        razorpay_payment_id: paymentId,
-        razorpay_signature: signature || null,
-      }, { onConflict: 'razorpay_payment_id' });
-
-      // Log activity
-      await supabase.from('activities').insert({
-        business_id: businessId,
-        actor_user_id: user.id,
-        action_type: 'SUBSCRIPTION_ACTIVATED',
-        description: `Upgraded to RenewalDesk ${plan.name} Plan (Capacity: ${plan.maxActiveCustomers} active customers).`,
-      });
     }
+
+    // Log activity
+    await adminClient.from('activities').insert({
+      business_id: businessId,
+      actor_user_id: user.id,
+      action_type: 'SUBSCRIPTION_ACTIVATED',
+      description: `Upgraded to RenewalDesk ${plan.name} Plan (Capacity: ${plan.maxActiveCustomers} active customers).`,
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
 import { FREE_TRIAL_DURATION_DAYS, FREE_TRIAL_MAX_CUSTOMERS } from '@/lib/billing/plans';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +79,13 @@ export async function POST(request: Request) {
         );
       }
 
+      if (rpcErr.message?.includes('TRIAL_USER_LIMIT_EXCEEDED')) {
+        return NextResponse.json(
+          { error: 'Your account has reached the maximum number of free trial workspaces. Please upgrade to a paid plan.' },
+          { status: 409 }
+        );
+      }
+
       if (rpcErr.message?.includes('UNAUTHORIZED')) {
         return NextResponse.json(
           { error: 'Only the workspace owner can activate the 14-day free trial.' },
@@ -126,7 +134,14 @@ export async function POST(request: Request) {
     const now = new Date();
     const expires = new Date(now.getTime() + FREE_TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
-    const { error: upsertErr } = await supabase
+    let adminClient: any = supabase;
+    try {
+      adminClient = getServiceRoleSupabaseClient();
+    } catch {
+      // Fallback in local dev/testing
+    }
+
+    const { error: upsertErr } = await adminClient
       .from('business_subscriptions')
       .upsert({
         business_id: businessId,
