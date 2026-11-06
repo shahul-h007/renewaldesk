@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
 import { FREE_TRIAL_DURATION_DAYS, FREE_TRIAL_MAX_CUSTOMERS } from '@/lib/billing/plans';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,21 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Authentication required. Please sign in to activate the trial.' },
         { status: 401 }
+      );
+    }
+
+    // Rate Limiting: 5 trial requests per hour per user/IP
+    const ip = getClientIp(request);
+    const rateLimit = await checkRateLimit({
+      key: `trial_start:${user.id}:${ip}`,
+      limit: 5,
+      windowSeconds: 3600,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many trial activation requests. Please wait before trying again.' },
+        { status: 429, headers: { 'Retry-After': '300' } }
       );
     }
 

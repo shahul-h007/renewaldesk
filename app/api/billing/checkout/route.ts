@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getPlanById, PLANS, FOUNDING_LIFETIME_MAX_SLOTS } from '@/lib/billing/plans';
 import { getRazorpayInstance, getRazorpayCredentials } from '@/lib/billing/razorpay';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,21 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required. Please sign in.' }, { status: 401 });
+    }
+
+    // Rate Limiting: 10 checkout orders per 15 minutes per user/IP
+    const ip = getClientIp(request);
+    const rateLimit = await checkRateLimit({
+      key: `checkout:${user.id}:${ip}`,
+      limit: 10,
+      windowSeconds: 900,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many checkout requests. Please wait a few minutes before trying again.' },
+        { status: 429, headers: { 'Retry-After': '60' } }
+      );
     }
 
     const body = await request.json();

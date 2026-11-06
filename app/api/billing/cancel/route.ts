@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getServiceRoleSupabaseClient } from '@/lib/supabase/service-role';
 import { getRazorpayInstance } from '@/lib/billing/razorpay';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,21 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+
+    // Rate Limiting: 5 cancellation requests per hour per user/IP
+    const ip = getClientIp(request);
+    const rateLimit = await checkRateLimit({
+      key: `cancel_sub:${user.id}:${ip}`,
+      limit: 5,
+      windowSeconds: 3600,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many cancellation requests. Please wait before trying again.' },
+        { status: 429, headers: { 'Retry-After': '300' } }
+      );
     }
 
     const { businessId } = await request.json();
