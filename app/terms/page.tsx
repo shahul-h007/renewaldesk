@@ -76,7 +76,7 @@ export default function TermsOfServicePage() {
             <span>•</span>
             <span><strong>Last Updated:</strong> October 2026</span>
             <span>•</span>
-            <span><strong>App URL:</strong> https://renewaldesk-dun.vercel.app</span>
+            <span><strong>App URL:</strong> {process.env.NEXT_PUBLIC_SITE_URL || 'https://renewaldesk.chronyx.in'}</span>
           </div>
 
           <p className="mt-5 text-sm text-slate-600 leading-relaxed">

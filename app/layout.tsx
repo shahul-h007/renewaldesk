@@ -13,6 +13,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://renewaldesk.chronyx.in'),
   title: 'RenewalDesk — Find Due Customers & Bring Them Back via WhatsApp',
   description: 'Helping small service businesses track due dates, follow up on WhatsApp, and recover repeat revenue.',
   icons: {
