@@ -182,7 +182,7 @@ async function runLiveSmokeTest(): Promise<SmokeTestReport> {
     }
 
     testBusinessId = bizResult.id;
-    report.businessId = testBusinessId;
+    report.businessId = testBusinessId || undefined;
     assert(testBusinessId, 'Business ID must be returned');
     console.log(`  ✔ Business workspace onboarded: ID=${testBusinessId}, Name="${bizResult.name}"`);
 
