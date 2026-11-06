@@ -3,6 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { RenewalDeskProvider } from '@/lib/store';
 import { ToastProvider } from '@/components/ui/Toast';
+import { TutorialProvider } from '@/components/TutorialContext';
+import { TutorialCoach } from '@/components/TutorialCoach';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
 
@@ -37,7 +39,12 @@ export default function RootLayout({
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased font-sans">
         <AuthProvider>
           <RenewalDeskProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <TutorialProvider>
+                {children}
+                <TutorialCoach />
+              </TutorialProvider>
+            </ToastProvider>
           </RenewalDeskProvider>
         </AuthProvider>
         <SpeedInsights />

@@ -9,9 +9,7 @@ import { AppShell } from '@/components/AppShell';
 import { FollowUpRow } from '@/components/FollowUpRow';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { TrialBanner } from '@/components/TrialBanner';
-import { OnboardingChecklist } from '@/components/OnboardingChecklist';
-import { GuidedTour } from '@/components/GuidedTour';
-import { isTourCompleted, isTourSkipped } from '@/lib/tour-config';
+import { useTutorial } from '@/components/TutorialContext';
 import { Tabs, TabItem } from '@/components/ui/Tabs';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
@@ -43,22 +41,35 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [billingUsage, setBillingUsage] = useState<any>(null);
-  const [isTourOpen, setIsTourOpen] = useState(false);
 
-  // Check URL ?tour=true query param or automatic first-run launch
+  const {
+    state: tutorialState,
+    start: startTutorial,
+    isAddCustomerModalRequested,
+    setIsAddCustomerModalRequested,
+  } = useTutorial();
+
+  // Auto-start ONCE: when user first reaches Today after onboarding.
+  // Marks "tutorial shown / started" immediately so refresh or later login never auto-starts it again.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const hasTourParam = params.get('tour') === 'true';
-    const bizId = authBiz?.id || business?.id;
+    const hasTourParam = params.get('tour') === 'true' || params.get('tutorial') === 'true';
 
     if (hasTourParam) {
-      setIsTourOpen(true);
+      startTutorial();
       window.history.replaceState({}, '', window.location.pathname);
-    } else if (isLoaded && !isTourCompleted(bizId) && !isTourSkipped(bizId)) {
-      setIsTourOpen(true);
+    } else if (isLoaded && !tutorialState.hasStarted && !tutorialState.isCompleted && !tutorialState.isSkipped) {
+      startTutorial();
     }
-  }, [isLoaded, authBiz?.id, business?.id]);
+  }, [isLoaded, tutorialState.hasStarted, tutorialState.isCompleted, tutorialState.isSkipped, startTutorial]);
+
+  // Sync tutorial Add Customer modal request
+  useEffect(() => {
+    if (isAddCustomerModalRequested) {
+      setShowAddModal(true);
+    }
+  }, [isAddCustomerModalRequested]);
 
   const fetchUsage = React.useCallback(() => {
     if (!authBiz?.id) return;
@@ -204,13 +215,6 @@ export default function DashboardPage() {
             onTrialStarted={() => fetchUsage()}
           />
         )}
-
-        {/* Getting Started Onboarding Checklist Card */}
-        <OnboardingChecklist
-          onOpenAddCustomer={() => setShowAddModal(true)}
-          onStartTour={() => setIsTourOpen(true)}
-          businessId={authBiz?.id || business?.id}
-        />
 
         {/* Top KPI Cards (Tappable to jump to tabs) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
@@ -457,13 +461,10 @@ export default function DashboardPage() {
 
       <AddCustomerModal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-      />
-
-      <GuidedTour
-        isOpen={isTourOpen}
-        onClose={() => setIsTourOpen(false)}
-        businessId={authBiz?.id || business?.id}
+        onClose={() => {
+          setShowAddModal(false);
+          setIsAddCustomerModalRequested(false);
+        }}
       />
     </AppShell>
   );

@@ -527,7 +527,7 @@ console.log('\n--- Suite 7: Production Safety & Unset Razorpay Credential Defens
     console.log('  ✔ Checkout handler safely blocks order creation with 503 when credentials are unset');
 
     // 6. Simulate Verify Request when credentials are unset: Must return 503, never grant plan
-    function simulatePaymentVerification(isConfigured: boolean, signature?: string) {
+    function simulatePaymentVerification(isConfigured: boolean, signature?: string): any {
       if (!isConfigured) {
         return {
           status: 503,

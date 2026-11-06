@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { HelpTip } from '@/components/ui/HelpTip';
 import { useToast } from '@/components/ui/Toast';
+import { useTutorial } from '@/components/TutorialContext';
 import {
   Save,
   Check,
@@ -50,6 +51,9 @@ export default function TemplatesPage() {
 
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
   const toast = useToast();
+  const { state: tutorialState, advance: advanceTutorial } = useTutorial();
+  const isLesson5 = tutorialState.isActive && tutorialState.currentLesson === 5;
+  const tutorialStep = isLesson5 ? tutorialState.currentStep : -1;
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   const [activeTemplateId, setActiveTemplateId] = useState<string>(templates[0]?.id || '');
@@ -176,6 +180,9 @@ export default function TemplatesPage() {
       setNewTplText('');
       setNewTplType('CUSTOM');
       toast.success(`Template "${created?.name || 'New Template'}" created!`);
+      if (isLesson5 && tutorialStep === 4) {
+        advanceTutorial();
+      }
       if (created?.id) {
         setActiveTemplateId(created.id);
         setEditedText(created.templateText);
@@ -319,7 +326,13 @@ export default function TemplatesPage() {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setIsAddModalOpen(true)}
+              data-tutorial="new-template-btn"
+              onClick={() => {
+                setIsAddModalOpen(true);
+                if (isLesson5 && tutorialStep === 0) {
+                  advanceTutorial();
+                }
+              }}
               leftIcon={<Plus className="w-4 h-4" />}
             >
               New Template
@@ -331,7 +344,13 @@ export default function TemplatesPage() {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setIsAddModalOpen(true)}
+              data-tutorial="new-template-btn"
+              onClick={() => {
+                setIsAddModalOpen(true);
+                if (isLesson5 && tutorialStep === 0) {
+                  advanceTutorial();
+                }
+              }}
               leftIcon={<Plus className="w-3.5 h-3.5" />}
             >
               New
@@ -662,8 +681,15 @@ export default function TemplatesPage() {
             <input
               type="text"
               required
+              data-tutorial="template-name"
               value={newTplName}
               onChange={(e) => setNewTplName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && isLesson5 && tutorialStep === 1 && newTplName.trim().length >= 2) {
+                  e.preventDefault();
+                  advanceTutorial();
+                }
+              }}
               placeholder="e.g. Quarterly Filter Upgrade Offer"
               className="w-full text-xs border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
             />
@@ -674,8 +700,14 @@ export default function TemplatesPage() {
               Template Trigger / Purpose
             </label>
             <select
+              data-tutorial="template-type"
               value={newTplType}
-              onChange={(e) => setNewTplType(e.target.value as TemplateType)}
+              onChange={(e) => {
+                setNewTplType(e.target.value as TemplateType);
+                if (isLesson5 && tutorialStep === 2) {
+                  advanceTutorial();
+                }
+              }}
               className="w-full text-xs border border-gray-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
             >
               <option value="CUSTOM">Custom / General Announcement</option>
@@ -699,12 +731,17 @@ export default function TemplatesPage() {
               <span className="text-[10px] text-gray-400">Click tag to insert</span>
             </div>
 
-            <div className="flex flex-wrap gap-1 mb-2">
+            <div data-tutorial="placeholder-chips" className="flex flex-wrap gap-1 mb-2">
               {['{{customer_name}}', '{{service_name}}', '{{asset_name}}', '{{due_date}}', '{{business_phone}}'].map((t) => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setNewTplText((prev) => `${prev} ${t} `)}
+                  onClick={() => {
+                    setNewTplText((prev) => `${prev} ${t} `);
+                    if (isLesson5 && tutorialStep === 3) {
+                      advanceTutorial();
+                    }
+                  }}
                   className="px-2 py-0.5 text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100"
                 >
                   {t}
@@ -715,6 +752,7 @@ export default function TemplatesPage() {
             <textarea
               required
               rows={6}
+              data-tutorial="template-body"
               value={newTplText}
               onChange={(e) => setNewTplText(e.target.value)}
               placeholder="Hi {{customer_name}}, this is {{business_name}}..."
@@ -733,6 +771,7 @@ export default function TemplatesPage() {
             <Button
               variant="primary"
               type="submit"
+              data-tutorial="save-template-btn"
               disabled={isSubmittingNew}
             >
               {isSubmittingNew ? 'Saving...' : 'Create Template'}

@@ -116,14 +116,20 @@ async function getAuthCookies() {
     },
   });
 
-  const { error } = await client.auth.signInWithPassword({
+  let { error } = await client.auth.signInWithPassword({
     email: 'audit_runner@renewaldesk.test',
     password: 'AuditPassword123!Secure',
   });
 
   if (error) {
-    console.error('Failed to get auth session for audit runner:', error.message);
-    return [];
+    const signUpRes = await client.auth.signUp({
+      email: 'audit_runner@renewaldesk.test',
+      password: 'AuditPassword123!Secure',
+    });
+    if (signUpRes.error) {
+      console.error('Failed to get auth session for audit runner:', signUpRes.error.message);
+      return [];
+    }
   }
 
   return Object.entries(cookies).map(([name, value]) => ({ name, value }));

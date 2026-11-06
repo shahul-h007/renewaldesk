@@ -5,6 +5,7 @@ import { Customer, Asset, ServiceRecord, IntervalUnit } from '@/lib/types';
 import { useRenewalDesk } from '@/lib/store';
 import { calculateNextDueDate, formatReadableDate, formatIntervalDisplay } from '@/lib/due-date-engine';
 import { useToast } from './ui/Toast';
+import { useTutorial } from './TutorialContext';
 import { CheckCircle2, X, Calendar, ArrowRight, Clock } from 'lucide-react';
 
 interface CompleteServiceModalProps {
@@ -31,6 +32,7 @@ export function CompleteServiceModal({
   onComplete,
 }: CompleteServiceModalProps) {
   const { markServiceCompleted, business, catalog } = useRenewalDesk();
+  const { state: tutorialState, advance: advanceTutorial } = useTutorial();
   const toast = useToast();
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -62,6 +64,9 @@ export function CompleteServiceModal({
       onComplete(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
     } else {
       markServiceCompleted(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
+    }
+    if (tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 4) {
+      advanceTutorial();
     }
     toast.success(`Service completed! Next due date scheduled for ${nextDueCalculated}.`);
     onClose();
@@ -188,6 +193,7 @@ export function CompleteServiceModal({
             </button>
             <button
               type="submit"
+              data-tutorial="complete-submit"
               className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm flex items-center gap-2 transition-all"
             >
               <CheckCircle2 className="w-4 h-4" />

@@ -10,6 +10,7 @@ import { CompleteServiceModal } from './CompleteServiceModal';
 import { CustomerDetailsModal } from './CustomerDetailsModal';
 import { Button } from './ui/Button';
 import { useToast } from './ui/Toast';
+import { useTutorial } from './TutorialContext';
 import {
   Phone,
   MessageSquare,
@@ -44,6 +45,7 @@ export function FollowUpRow({
   onOpenComplete,
 }: FollowUpRowProps) {
   const { updateFollowUpStatus, business } = useRenewalDesk();
+  const { state: tutorialState, advance: advanceTutorial } = useTutorial();
   const toast = useToast();
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -52,11 +54,28 @@ export function FollowUpRow({
 
   if (!customer) return null;
 
+  const isPracticeCustomer =
+    tutorialState.isActive &&
+    (tutorialState.practiceCustomerId
+      ? customer.id === tutorialState.practiceCustomerId
+      : true);
+
   const dueInfo = calculateDueStatus(service.nextDueDate);
   const status = service.followUpStatus;
 
   const handleStatusChange = (newStatus: FollowUpStatus) => {
     setShowMoreMenu(false);
+
+    if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4) {
+      if (newStatus === 'NO_RESPONSE' && tutorialState.currentStep === 0) {
+        advanceTutorial();
+      } else if (newStatus === 'REPLIED' && tutorialState.currentStep === 2) {
+        advanceTutorial();
+      } else if (newStatus === 'BOOKED' && tutorialState.currentStep === 3) {
+        advanceTutorial();
+      }
+    }
+
     if (newStatus === 'COMPLETED') {
       // Completed is excluded from automatic undo toast because it has its own dedicated modal flow
       if (onOpenComplete) {
@@ -88,6 +107,10 @@ export function FollowUpRow({
           () => {
             if (onUpdateStatus) onUpdateStatus(previousStatus);
             else updateFollowUpStatus(service.id, previousStatus);
+
+            if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 1) {
+              advanceTutorial();
+            }
           },
           'Status Updated',
           5000
@@ -100,9 +123,15 @@ export function FollowUpRow({
 
   const handlePrimaryAction = () => {
     if (status === 'NOT_CONTACTED' || !status) {
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 0) {
+        advanceTutorial();
+      }
       if (onOpenWhatsApp) onOpenWhatsApp();
       else setShowWhatsAppModal(true);
     } else if (status === 'CONTACTED' || status === 'REPLIED' || status === 'NO_RESPONSE') {
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 3) {
+        advanceTutorial();
+      }
       handleStatusChange('BOOKED');
     } else if (status === 'BOOKED') {
       if (onOpenComplete) onOpenComplete();
@@ -121,7 +150,10 @@ export function FollowUpRow({
       {/* ============================================================== */}
       {/* MOBILE VIEW (< md): Touch-optimized Card */}
       {/* ============================================================== */}
-      <div className="md:hidden bg-white p-4 border-b border-gray-100 last:border-b-0 space-y-3 transition-colors hover:bg-gray-50/60">
+      <div
+        data-tutorial={isPracticeCustomer ? 'practice-customer-card' : undefined}
+        className="md:hidden bg-white p-4 border-b border-gray-100 last:border-b-0 space-y-3 transition-colors hover:bg-gray-50/60"
+      >
         {/* Top Header: Customer Name & Urgency Pill */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -171,6 +203,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={MessageSquare}
+              data-tutorial={isPracticeCustomer ? 'whatsapp-btn' : undefined}
               data-tour="tour-whatsapp-action"
               className="flex-1 min-h-[44px]"
             >
@@ -182,6 +215,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={Calendar}
+              data-tutorial={isPracticeCustomer ? 'mark-booked-btn' : undefined}
               className="flex-1 min-h-[44px]"
             >
               Mark booked
@@ -192,6 +226,7 @@ export function FollowUpRow({
               size="md"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tutorial={isPracticeCustomer ? 'mark-completed-btn' : undefined}
               data-tour="tour-complete-action"
               className="flex-1 min-h-[44px]"
             >
@@ -224,6 +259,7 @@ export function FollowUpRow({
           <button
             type="button"
             onClick={() => setShowMoreMenu(true)}
+            data-tutorial={isPracticeCustomer ? 'more-menu-btn' : undefined}
             aria-label="More actions"
             className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-colors shrink-0 active:scale-95"
           >
@@ -235,7 +271,10 @@ export function FollowUpRow({
       {/* ============================================================== */}
       {/* DESKTOP VIEW (≥ md): Compact Row with Proximity Actions */}
       {/* ============================================================== */}
-      <div className="hidden md:flex items-center justify-between px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-blue-50/20 transition-colors group">
+      <div
+        data-tutorial={isPracticeCustomer ? 'practice-customer-card' : undefined}
+        className="hidden md:flex items-center justify-between px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-blue-50/20 transition-colors group"
+      >
         {/* Customer Identity */}
         <div className="w-1/4 min-w-0 pr-3">
           <div className="flex items-center gap-2">
@@ -290,6 +329,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={MessageSquare}
+              data-tutorial={isPracticeCustomer ? 'whatsapp-btn' : undefined}
               data-tour="tour-whatsapp-action"
               className="min-h-[36px]"
             >
@@ -301,6 +341,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={Calendar}
+              data-tutorial={isPracticeCustomer ? 'mark-booked-btn' : undefined}
               className="min-h-[36px]"
             >
               Mark booked
@@ -311,6 +352,7 @@ export function FollowUpRow({
               size="sm"
               onClick={handlePrimaryAction}
               leftIcon={CheckCircle2}
+              data-tutorial={isPracticeCustomer ? 'mark-completed-btn' : undefined}
               data-tour="tour-complete-action"
               className="min-h-[36px]"
             >
@@ -344,6 +386,7 @@ export function FollowUpRow({
             <button
               type="button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
+              data-tutorial={isPracticeCustomer ? 'more-menu-btn' : undefined}
               className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
               aria-label="More actions"
               title="More options"

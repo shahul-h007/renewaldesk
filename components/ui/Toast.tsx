@@ -152,11 +152,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   <div className="mt-2">
                     <button
                       type="button"
+                      data-tutorial="undo-action"
                       onClick={() => {
                         toast.action?.onClick();
                         dismiss(toast.id);
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 shadow-2xs transition-all active:scale-95"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 shadow-2xs transition-all active:scale-95 pointer-events-auto"
                     >
                       <Undo2 className="w-3.5 h-3.5 text-blue-600" />
                       <span>{toast.action.label}</span>

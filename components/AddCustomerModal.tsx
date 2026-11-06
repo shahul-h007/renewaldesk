@@ -6,6 +6,8 @@ import { calculateNextDueDate, formatIntervalDisplay } from '@/lib/due-date-engi
 import { IntervalUnit } from '@/lib/types';
 import { getCategoryMetadata } from '@/lib/catalog-presets';
 import { normalizePhoneNumber } from '@/lib/csv-import';
+import { useTutorial } from './TutorialContext';
+import { isValidCustomerName, isValidIndianPhone } from '@/lib/tutorial-engine';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -31,6 +33,10 @@ interface AddCustomerModalProps {
 
 export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
   const { addCustomer, business, catalog, customers } = useRenewalDesk();
+  const { state: tutorialState, advance: advanceTutorial, setPracticeCustomer } = useTutorial();
+  const isLesson1 = tutorialState.isActive && tutorialState.currentLesson === 1;
+  const tutorialStep = isLesson1 ? tutorialState.currentStep : -1;
+
   const categoryMeta = getCategoryMetadata(business?.industry);
   const toast = useToast();
 
@@ -139,6 +145,12 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
 
       if (res.success) {
         const savedName = name.trim();
+        if (res.customerId) {
+          setPracticeCustomer(res.customerId);
+        }
+        if (isLesson1) {
+          advanceTutorial();
+        }
         setName('');
         setPhone('');
         setAddress('');
@@ -210,15 +222,23 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <Input
-              label="Customer Full Name"
-              required
-              placeholder="e.g. Anand Menon"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <div data-tutorial="customer-name" className={isLesson1 && tutorialStep !== 0 ? 'opacity-40 transition-opacity pointer-events-none' : 'transition-opacity'}>
+              <Input
+                label="Customer Full Name"
+                required
+                placeholder="e.g. Anand Menon"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && isLesson1 && tutorialStep === 0 && name.trim().length >= 2) {
+                    e.preventDefault();
+                    advanceTutorial();
+                  }
+                }}
+              />
+            </div>
 
-            <div>
+            <div data-tutorial="customer-phone" className={isLesson1 && tutorialStep !== 1 ? 'opacity-40 transition-opacity pointer-events-none' : 'transition-opacity'}>
               <Input
                 label="Mobile / WhatsApp Number"
                 required
@@ -227,6 +247,17 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 helperText="10-digit phone for 1-click WhatsApp reminders."
+                error={
+                  phone.trim().length > 0 && normalizePhoneNumber(phone).length !== 10
+                    ? 'Please enter a valid 10-digit mobile number'
+                    : undefined
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && isLesson1 && tutorialStep === 1 && normalizePhoneNumber(phone).length === 10) {
+                    e.preventDefault();
+                    advanceTutorial();
+                  }
+                }}
               />
               {existingCustomerMatch && (
                 <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-start gap-1.5">
@@ -238,37 +269,51 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
               )}
             </div>
 
-            <Select
-              label={
-                <span className="inline-flex items-center gap-1.5">
-                  <span>Service Type</span>
-                  <HelpTip
-                    title="Service Interval & Cadence"
-                    content="Service interval defines how frequently maintenance should repeat (e.g. every 6 months). When you mark a service completed, RenewalDesk uses this cadence to auto-schedule the next due date."
-                  />
-                </span>
-              }
-              required
-              value={serviceName}
-              onChange={(e) => handleServiceTypeChange(e.target.value)}
-              helperText={`Cadence: ${formatIntervalDisplay(intervalValue, intervalUnit)}`}
-            >
-              {activeCatalog.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name} ({formatIntervalDisplay(c.intervalValue, c.intervalUnit)})
-                </option>
-              ))}
-            </Select>
+            <div data-tutorial="service-type" className={isLesson1 && tutorialStep !== 2 ? 'opacity-40 transition-opacity pointer-events-none' : 'transition-opacity'}>
+              <Select
+                label={
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Service Type</span>
+                    <HelpTip
+                      title="Service Interval & Cadence"
+                      content="Service interval defines how frequently maintenance should repeat (e.g. every 6 months). When you mark a service completed, RenewalDesk uses this cadence to auto-schedule the next due date."
+                    />
+                  </span>
+                }
+                required
+                value={serviceName}
+                onChange={(e) => {
+                  handleServiceTypeChange(e.target.value);
+                  if (isLesson1 && tutorialStep === 2) {
+                    advanceTutorial();
+                  }
+                }}
+                helperText={`Cadence: ${formatIntervalDisplay(intervalValue, intervalUnit)}`}
+              >
+                {activeCatalog.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name} ({formatIntervalDisplay(c.intervalValue, c.intervalUnit)})
+                  </option>
+                ))}
+              </Select>
+            </div>
 
-            <Input
-              label="Last Service Date"
-              type="date"
-              value={lastServiceDate}
-              onChange={(e) => handleLastDateChange(e.target.value)}
-              helperText="Date appliance was last serviced."
-            />
+            <div data-tutorial="last-service-date" className={isLesson1 && tutorialStep !== 3 ? 'opacity-40 transition-opacity pointer-events-none' : 'transition-opacity'}>
+              <Input
+                label="Last Service Date"
+                type="date"
+                value={lastServiceDate}
+                onChange={(e) => {
+                  handleLastDateChange(e.target.value);
+                  if (isLesson1 && tutorialStep === 3) {
+                    advanceTutorial();
+                  }
+                }}
+                helperText="Date appliance was last serviced."
+              />
+            </div>
 
-            <div className="sm:col-span-2">
+            <div data-tutorial="next-due-date" className={`sm:col-span-2 ${isLesson1 && tutorialStep !== 4 ? 'opacity-40 transition-opacity pointer-events-none' : 'transition-opacity'}`}>
               <Input
                 label={
                   <span className="inline-flex items-center gap-1.5">
@@ -293,7 +338,7 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
         {/* ============================================================== */}
         {/* SECTION 2: MORE DETAILS (Expandable Accordion) */}
         {/* ============================================================== */}
-        <div className="pt-2 border-t border-gray-100">
+        <div data-tutorial="additional-details" className={`pt-2 border-t border-gray-100 ${isLesson1 && tutorialStep !== 5 ? 'opacity-40 transition-opacity' : 'transition-opacity'}`}>
           <button
             type="button"
             onClick={() => setShowMoreDetails(!showMoreDetails)}
@@ -432,6 +477,7 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
             size="md"
             isLoading={isSubmitting}
             disabled={!name.trim() || !phone.trim()}
+            data-tutorial="save-customer"
           >
             Save Customer & Start Cycle
           </Button>

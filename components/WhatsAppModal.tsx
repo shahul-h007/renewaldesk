@@ -6,6 +6,7 @@ import { useRenewalDesk } from '@/lib/store';
 import { interpolateTemplate, generateWhatsAppLink } from '@/lib/whatsapp';
 import { formatReadableDate } from '@/lib/due-date-engine';
 import { getCategoryMetadata } from '@/lib/catalog-presets';
+import { useTutorial } from './TutorialContext';
 import { X, Send, Copy, Check, MessageSquare } from 'lucide-react';
 
 interface WhatsAppModalProps {
@@ -18,6 +19,7 @@ interface WhatsAppModalProps {
 
 export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: WhatsAppModalProps) {
   const { templates, business, updateFollowUpStatus } = useRenewalDesk();
+  const { state: tutorialState, advance: advanceTutorial } = useTutorial();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [messageText, setMessageText] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -70,12 +72,21 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
     if (service.followUpStatus === 'NOT_CONTACTED') {
       updateFollowUpStatus(service.id, 'CONTACTED');
     }
+    if (tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 1) {
+      advanceTutorial();
+    }
     onClose();
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(messageText);
     setCopied(true);
+    if (service.followUpStatus === 'NOT_CONTACTED') {
+      updateFollowUpStatus(service.id, 'CONTACTED');
+    }
+    if (tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 1) {
+      advanceTutorial();
+    }
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -174,6 +185,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
             </button>
             <button
               onClick={handleOpenWhatsApp}
+              data-tutorial="open-whatsapp-btn"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] shadow-sm transition-all"
             >
               <Send className="w-4 h-4" />

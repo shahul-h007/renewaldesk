@@ -21,11 +21,48 @@ import {
 import { formatINR } from '@/lib/format';
 import { formatAddressSummary } from '@/lib/address-utils';
 import { calculateResultsAnalytics, AnalyticsPeriod } from '@/lib/analytics-utils';
+import { useTutorial } from '@/components/TutorialContext';
+import { useToast } from '@/components/ui/Toast';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 export default function ResultsPage() {
-  const { services, customers, serviceHistory, business, isLoaded } = useRenewalDesk();
+  const { services, customers, serviceHistory, business, isLoaded, hardDeleteCustomer, deleteCustomer } = useRenewalDesk();
   const { isConfigured, isLoading: isAuthLoading } = useAuth();
+  const { state: tutorialState, complete: completeTutorial } = useTutorial();
+  const toast = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState<AnalyticsPeriod>('ALL_TIME');
+  const [isDeletingPractice, setIsDeletingPractice] = useState(false);
+
+  const isFinishStep =
+    tutorialState.isActive &&
+    tutorialState.currentLesson === 6 &&
+    tutorialState.currentStep === 1;
+
+  const handleKeepPracticeCustomer = () => {
+    completeTutorial();
+    toast.success('Tutorial completed! Your practice customer is saved in your account.');
+  };
+
+  const handleRemovePracticeCustomer = async () => {
+    setIsDeletingPractice(true);
+    try {
+      if (tutorialState.practiceCustomerId) {
+        if (hardDeleteCustomer) {
+          await hardDeleteCustomer(tutorialState.practiceCustomerId);
+        } else {
+          deleteCustomer(tutorialState.practiceCustomerId);
+        }
+      }
+      completeTutorial();
+      toast.success('Tutorial completed! Practice customer permanently removed.');
+    } catch (err: any) {
+      console.warn('Could not delete practice customer:', err);
+      completeTutorial();
+    } finally {
+      setIsDeletingPractice(false);
+    }
+  };
 
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
@@ -114,7 +151,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Hero Revenue & Pipeline Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div data-tutorial="results-funnel" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Confirmed Recovered Revenue */}
           <div className="lg:col-span-2 bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden flex flex-col justify-between">
             <div className="relative z-10 space-y-3">
@@ -397,6 +434,57 @@ export default function ResultsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tutorial Completion & Practice Customer Choice Modal */}
+      <Modal
+        isOpen={isFinishStep}
+        onClose={handleKeepPracticeCustomer}
+        title="You're ready!"
+        description="You have mastered the complete RenewalDesk workflow: Remember -> Remind -> Book -> Repeat."
+        size="md"
+      >
+        <div data-tutorial="completion-modal" className="py-2 space-y-4">
+          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200/80 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-emerald-950">Tutorial Completed Successfully</p>
+              <p className="text-emerald-800 leading-relaxed">
+                You know how to add customers, follow up on WhatsApp in 1 click, track customer replies, and log repeat revenue.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-gray-900">
+              What would you like to do with your practice customer?
+            </label>
+            <p className="text-[11px] text-gray-500 leading-normal">
+              You can keep the customer in your account to continue testing, or remove it permanently right now so your queue starts completely fresh.
+            </p>
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={handleRemovePracticeCustomer}
+              disabled={isDeletingPractice}
+              className="w-full sm:w-auto text-xs text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+            >
+              {isDeletingPractice ? 'Removing...' : 'Remove permanently'}
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleKeepPracticeCustomer}
+              disabled={isDeletingPractice}
+              className="w-full sm:w-auto text-xs"
+            >
+              Keep practice customer
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   );
 }

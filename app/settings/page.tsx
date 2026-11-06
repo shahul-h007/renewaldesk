@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
-import { resetTour } from '@/lib/tour-config';
+import { Modal } from '@/components/ui/Modal';
+import { useTutorial } from '@/components/TutorialContext';
+import { TUTORIAL_LESSONS } from '@/lib/tutorial-content';
 import { AppShell } from '@/components/AppShell';
 import { Tabs, TabItem } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
@@ -34,6 +36,8 @@ import {
   Sparkles,
   Phone,
   RefreshCw,
+  Play,
+  CheckCircle2,
 } from 'lucide-react';
 import { BUSINESS_TYPE_OPTIONS, getCanonicalCategoryLabel } from '@/lib/catalog-presets';
 
@@ -56,6 +60,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const toast = useToast();
+  const { state: tutorialState, resume: resumeTutorial, redo: redoTutorial } = useTutorial();
+  const [isRedoModalOpen, setIsRedoModalOpen] = useState(false);
 
   // Form State
   const [name, setName] = useState(business.name);
@@ -126,7 +132,7 @@ export default function SettingsPage() {
     { id: 'SERVICES', label: 'Services', count: catalog.length, icon: Wrench },
     { id: 'TEMPLATES', label: 'Templates', icon: MessageSquare },
     { id: 'BILLING', label: 'Billing', icon: CreditCard },
-    { id: 'HELP', label: 'Help & Tour', icon: HelpCircle },
+    { id: 'HELP', label: 'Help & Tutorial', icon: HelpCircle },
   ];
 
   return (
@@ -420,29 +426,107 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Replay Tour Action Card */}
-                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 gap-3">
-                  <div>
-                    <p className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <span>Take the Interactive Guided Tour</span>
-                    </p>
-                    <p className="text-[11px] text-blue-800 mt-0.5">
-                      Walk through the 5-step workflow: add customers, check today&apos;s queue, send reminders, and book renewals.
-                    </p>
+                {/* Interactive Hands-On Tutorial Progress */}
+                <div className="pt-2 p-5 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/60 rounded-2xl border border-blue-200/80 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-100 pb-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-blue-600 shrink-0" />
+                        <h3 className="font-bold text-sm text-gray-900">Interactive Hands-On Tutorial</h3>
+                        {tutorialState.isCompleted ? (
+                          <Badge variant="success">Completed</Badge>
+                        ) : tutorialState.isActive ? (
+                          <Badge variant="primary">
+                            Lesson {tutorialState.currentLesson} of {TUTORIAL_LESSONS.length}
+                          </Badge>
+                        ) : (
+                          <Badge variant="neutral">Not Started</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        Learn by doing each action directly inside the app: add a customer, send WhatsApp reminders, record bookings, and review revenue.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!tutorialState.isCompleted && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            resumeTutorial();
+                            const currentLesson = TUTORIAL_LESSONS.find((l) => l.id === tutorialState.currentLesson);
+                            router.push(currentLesson?.route || '/dashboard');
+                          }}
+                          leftIcon={<Play className="w-3.5 h-3.5" />}
+                        >
+                          Resume Tutorial
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsRedoModalOpen(true)}
+                        leftIcon={<RotateCcw className="w-3.5 h-3.5 text-gray-600" />}
+                      >
+                        Redo Tutorial
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {
-                      resetTour(business.id);
-                      router.push('/dashboard?tour=true');
-                    }}
-                    leftIcon={RotateCcw}
-                    className="shrink-0"
-                  >
-                    Replay Tour
-                  </Button>
+
+                  {/* 6 Lessons Checklist */}
+                  <div className="space-y-2.5">
+                    {TUTORIAL_LESSONS.map((lesson) => {
+                      const isDone = tutorialState.isCompleted || tutorialState.currentLesson > lesson.id;
+                      const isCurrent = !tutorialState.isCompleted && tutorialState.isActive && tutorialState.currentLesson === lesson.id;
+
+                      return (
+                        <div
+                          key={lesson.id}
+                          className={`flex items-start justify-between p-3.5 rounded-xl border transition-colors ${
+                            isCurrent
+                              ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-200'
+                              : isDone
+                              ? 'bg-emerald-50/40 border-emerald-200/70'
+                              : 'bg-white border-gray-200/80 text-gray-500'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 shrink-0">
+                              {isDone ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              ) : isCurrent ? (
+                                <span className="flex h-2.5 w-2.5 relative m-1">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+                                </span>
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className={`text-xs font-semibold ${isCurrent ? 'text-blue-950 font-bold' : isDone ? 'text-gray-900' : 'text-gray-700'}`}>
+                                Lesson {lesson.id}: {lesson.title}
+                              </p>
+                              <p className="text-[11px] text-gray-500 leading-normal">
+                                {lesson.shortDescription}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 ml-3">
+                            {isDone ? (
+                              <Badge variant="success">Done</Badge>
+                            ) : isCurrent ? (
+                              <Badge variant="primary">In Progress</Badge>
+                            ) : (
+                              <Badge variant="neutral">Not Done</Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Import CSV Quick Link */}
@@ -527,6 +611,45 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal: Redo Tutorial Confirmation */}
+      <Modal
+        isOpen={isRedoModalOpen}
+        onClose={() => setIsRedoModalOpen(false)}
+        title="Restart Interactive Tutorial?"
+        icon={<RotateCcw className="w-5 h-5 text-blue-600" />}
+        size="md"
+      >
+        <div className="py-2 space-y-3 text-xs text-gray-600">
+          <p>
+            This will reset your tutorial progress back to <strong>Lesson 1: Add your first customer</strong> and open the dashboard.
+          </p>
+          <p>
+            You can practice the full 6-step loop again at any time.
+          </p>
+
+          <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRedoModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setIsRedoModalOpen(false);
+                redoTutorial();
+                router.push('/dashboard');
+              }}
+            >
+              Restart from Lesson 1
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   );
 }
