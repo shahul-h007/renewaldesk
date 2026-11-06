@@ -75,12 +75,11 @@ export const MAX_CSV_ROWS = 1000;
  */
 export function sanitizeCsvCell(cell: string): string {
   if (!cell || typeof cell !== 'string') return '';
-  // Strip control carriage returns and trailing tabs
-  const cleaned = cell.replace(/[\r]/g, '').trim();
-  if (/^[=\+\-@\t]/.test(cleaned)) {
-    return `'${cleaned}`;
+  const stripped = cell.replace(/\r/g, '');
+  if (/^[=\+\-@\t\r]/.test(cell) || /^[=\+\-@\t\r]/.test(stripped) || /^[=\+\-@\t\r]/.test(stripped.trim())) {
+    return `'${stripped.trim()}`;
   }
-  return cleaned;
+  return stripped.trim();
 }
 
 /**
