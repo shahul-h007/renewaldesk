@@ -451,6 +451,7 @@ export default function TemplatesPage() {
                         <button
                           key={tpl.id}
                           type="button"
+                          data-tutorial={tpl.id === templates[0]?.id ? "template-item" : undefined}
                           onClick={() => handleSelectTemplate(tpl)}
                           className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 min-h-[38px] max-w-full ${
                             isSelected
@@ -571,6 +572,7 @@ export default function TemplatesPage() {
                   </div>
                   <textarea
                     id="template-body-input"
+                    data-tutorial="template-body"
                     ref={textareaRef}
                     rows={8}
                     maxLength={2000}
@@ -594,6 +596,7 @@ export default function TemplatesPage() {
                   </span>
                   <Button
                     variant="primary"
+                    data-tutorial="save-template-btn"
                     onClick={handleSave}
                     className="w-full sm:w-auto"
                     leftIcon={savedSuccess ? <Check className="w-4 h-4 text-emerald-200" /> : <Save className="w-4 h-4" />}
@@ -678,6 +681,7 @@ export default function TemplatesPage() {
       {/* Modal: Add New Custom Template */}
       <Modal
         isOpen={isAddModalOpen}
+        dataModal="custom-template"
         onClose={() => setIsAddModalOpen(false)}
         title="Create New Message Template"
         icon={<Sparkles className="w-5 h-5 text-blue-600" />}
@@ -789,7 +793,7 @@ export default function TemplatesPage() {
             <Button
               variant="primary"
               type="submit"
-              data-tutorial="save-template-btn"
+              data-tutorial="save-custom-template-btn"
               disabled={isSubmittingNew}
             >
               {isSubmittingNew ? 'Saving...' : 'Create Template'}

@@ -72,7 +72,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
     if (service.followUpStatus === 'NOT_CONTACTED') {
       updateFollowUpStatus(service.id, 'CONTACTED');
     }
-    if (tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 1) {
+    if (tutorialState.isActive && tutorialState.currentLesson === 3) {
       advanceTutorial();
     }
     onClose();
@@ -84,7 +84,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
     if (service.followUpStatus === 'NOT_CONTACTED') {
       updateFollowUpStatus(service.id, 'CONTACTED');
     }
-    if (tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 1) {
+    if (tutorialState.isActive && tutorialState.currentLesson === 3) {
       advanceTutorial();
     }
     setTimeout(() => setCopied(false), 2000);
@@ -92,7 +92,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div data-modal="whatsapp" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -121,7 +121,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
             <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
               Choose Reminder Template
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div data-tutorial="whatsapp-template-select" className="flex flex-wrap gap-2">
               {templates.map(tpl => (
                 <button
                   key={tpl.id}
@@ -143,7 +143,7 @@ export function WhatsAppModal({ isOpen, onClose, customer, asset, service }: Wha
             <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
               Live WhatsApp Chat Preview
             </label>
-            <div className="bg-[#EFEAE2] p-4 rounded-xl border border-gray-200 relative">
+            <div data-tutorial="whatsapp-preview" className="bg-[#EFEAE2] p-4 rounded-xl border border-gray-200 relative">
               <div className="max-w-[85%] bg-white rounded-lg rounded-tl-none p-3.5 shadow-sm space-y-2 border border-black/5">
                 <p className="text-xs font-semibold text-emerald-800">
                   {business.name}

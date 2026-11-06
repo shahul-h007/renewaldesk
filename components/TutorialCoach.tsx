@@ -8,13 +8,19 @@ import {
   Sparkles,
   ChevronRight,
   ChevronLeft,
+  X,
   AlertCircle,
+  HelpCircle,
+  RotateCcw,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import {
   computeCoachPosition,
   Rect,
   CoachPositionResult,
 } from '@/lib/tutorial-positioning';
+import { TUTORIAL_LESSONS } from '@/lib/tutorial-content';
 
 export function TutorialCoach() {
   const {
@@ -22,9 +28,20 @@ export function TutorialCoach() {
     isActive,
     currentLessonConfig,
     currentStepConfig,
-    skip,
-    advance,
+    currentStepDef,
+    isWelcomeOpen,
+    dismissWelcome,
+    startFromWelcome,
+    isExitModalOpen,
+    promptExit,
+    confirmExit,
+    cancelExit,
+    isShaking,
+    shakeMessage,
+    triggerOutsideClickShake,
+    skipStep,
     back,
+    complete,
   } = useTutorial();
 
   const [mounted, setMounted] = useState(false);
@@ -34,7 +51,7 @@ export function TutorialCoach() {
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [targetMissing, setTargetMissing] = useState(false);
-  const [coachDimensions, setCoachDimensions] = useState({ width: 380, height: 220 });
+  const [coachDimensions, setCoachDimensions] = useState({ width: 380, height: 230 });
 
   const coachRef = useRef<HTMLDivElement>(null);
 
@@ -49,13 +66,14 @@ export function TutorialCoach() {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
 
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        // If visual viewport height is noticeably smaller than window.innerHeight, keyboard is open
-        const keyboardActive = window.visualViewport.height < window.innerHeight * 0.75;
-        setIsKeyboardOpen(keyboardActive);
-      } else {
-        setIsKeyboardOpen(false);
-      }
+      const isCompactHeight = mobile && window.innerHeight <= 550;
+      const isVisualViewportShrunk = Boolean(
+        typeof window !== 'undefined' &&
+        window.visualViewport &&
+        window.visualViewport.height < window.innerHeight * 0.75
+      );
+
+      setIsKeyboardOpen(isCompactHeight || isVisualViewportShrunk);
     };
 
     checkViewport();
@@ -85,291 +103,441 @@ export function TutorialCoach() {
         });
       }
     }
-  }, [state.currentLesson, state.currentStep, currentStepConfig, targetMissing]);
+  }, [state.currentLesson, state.currentStep, currentStepConfig, targetMissing, shakeMessage]);
 
-  // Locate the target element for the current step and scroll it into view
+  // Locate the target element for current step and scroll into view
   const updateTargetElement = useCallback(() => {
     if (!isActive || !currentStepConfig) return;
 
     const selector = currentStepConfig.targetSelector;
-    if (!selector) {
-      setTargetRect(null);
-      setModalRect(null);
-      setIsTargetInModal(false);
-      setTargetMissing(false);
-      return;
+    const fallbackSelector = currentStepConfig.fallbackSelector;
+
+    let el = selector ? (document.querySelector(selector) as HTMLElement | null) : null;
+    if (!el && fallbackSelector) {
+      el = document.querySelector(fallbackSelector) as HTMLElement | null;
     }
 
-    const el = document.querySelector(selector);
-    if (el) {
-      const domRect = el.getBoundingClientRect();
-      const rect: Rect = {
-        top: Math.round(domRect.top),
-        left: Math.round(domRect.left),
-        right: Math.round(domRect.right),
-        bottom: Math.round(domRect.bottom),
-        width: Math.round(domRect.width),
-        height: Math.round(domRect.height),
-      };
-
-      setTargetRect(rect);
-      setTargetMissing(false);
-
-      // Check if target is inside an open modal / dialog
-      const modalEl = el.closest('[role="dialog"], [aria-modal="true"], .modal-container');
-      if (modalEl) {
-        const mDomRect = modalEl.getBoundingClientRect();
-        setModalRect({
-          top: Math.round(mDomRect.top),
-          left: Math.round(mDomRect.left),
-          right: Math.round(mDomRect.right),
-          bottom: Math.round(mDomRect.bottom),
-          width: Math.round(mDomRect.width),
-          height: Math.round(mDomRect.height),
-        });
-        setIsTargetInModal(true);
-      } else {
-        setModalRect(null);
-        setIsTargetInModal(false);
-      }
-
-      // Add spotlight highlight class
-      el.classList.add('tutorial-target-highlight');
-
-      // Scroll smoothly into view if off-screen or too close to edges
-      const mobile = window.innerWidth < 768;
-      const minSafeTop = 60;
-      const maxSafeBottom = mobile ? window.innerHeight - 200 : window.innerHeight - 80;
-
-      if (
-        rect.top < minSafeTop ||
-        rect.bottom > maxSafeBottom ||
-        rect.left < 0 ||
-        rect.right > window.innerWidth
-      ) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } else {
+    if (!el) {
       setTargetRect(null);
       setModalRect(null);
       setIsTargetInModal(false);
       setTargetMissing(true);
+      return;
     }
-  }, [isActive, currentStepConfig]);
 
+    setTargetMissing(false);
+
+    // Mark element as active tutorial target
+    document.querySelectorAll('[data-tutorial-active-target]').forEach((prev) => {
+      prev.removeAttribute('data-tutorial-active-target');
+    });
+    el.setAttribute('data-tutorial-active-target', 'true');
+
+    // Check if target is inside an open modal dialog
+    const modalEl = el.closest('[role="dialog"], [data-modal]') as HTMLElement | null;
+    if (modalEl) {
+      setIsTargetInModal(true);
+      const mRect = modalEl.getBoundingClientRect();
+      setModalRect({
+        top: Math.round(mRect.top),
+        left: Math.round(mRect.left),
+        right: Math.round(mRect.right),
+        bottom: Math.round(mRect.bottom),
+        width: Math.round(mRect.width),
+        height: Math.round(mRect.height),
+      });
+    } else {
+      setIsTargetInModal(false);
+      setModalRect(null);
+    }
+
+    // Scroll into view if not already visible with generous clearance from header (60px) and bottom nav (64px)
+    const rect = el.getBoundingClientRect();
+    const isVisibleInViewport =
+      rect.top >= 60 &&
+      rect.bottom <= (window.innerHeight - (window.innerWidth < 768 ? 64 : 20));
+
+    if (isKeyboardOpen) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    } else if (!isVisibleInViewport) {
+      const alignBlock = currentStepConfig?.placement === 'top' ? 'end' : 'start';
+      el.scrollIntoView({ behavior: 'smooth', block: alignBlock });
+    }
+
+    // Capture bounding client rect
+    const updatedRect = el.getBoundingClientRect();
+    setTargetRect({
+      top: Math.round(updatedRect.top),
+      left: Math.round(updatedRect.left),
+      right: Math.round(updatedRect.right),
+      bottom: Math.round(updatedRect.bottom),
+      width: Math.round(updatedRect.width),
+      height: Math.round(updatedRect.height),
+    });
+  }, [isActive, currentStepConfig, isKeyboardOpen]);
+
+  // Poll for target element when step changes or on scroll/resize
   useEffect(() => {
     if (!isActive) return;
 
-    const cleanupTarget = () => {
-      document.querySelectorAll('.tutorial-target-highlight').forEach((el) => {
-        el.classList.remove('tutorial-target-highlight');
-      });
+    updateTargetElement();
+    const interval = setInterval(updateTargetElement, 300);
+
+    const handleScrollOrResize = () => {
+      requestAnimationFrame(updateTargetElement);
     };
 
-    cleanupTarget();
-    const timer = setTimeout(updateTargetElement, 150);
-    window.addEventListener('scroll', updateTargetElement, true);
-    window.addEventListener('resize', updateTargetElement);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
 
     return () => {
-      clearTimeout(timer);
-      cleanupTarget();
-      window.removeEventListener('scroll', updateTargetElement, true);
-      window.removeEventListener('resize', updateTargetElement);
+      clearInterval(interval);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
     };
-  }, [isActive, state.currentLesson, state.currentStep, updateTargetElement]);
+  }, [isActive, updateTargetElement]);
 
-  // Keyboard accessibility: Escape to skip tutorial
-  useEffect(() => {
-    if (!isActive) return;
+  if (!mounted) return null;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        skip();
-      }
-    };
+  // -------------------------------------------------------------------------
+  // 1. WELCOME MODAL (Start / Stop)
+  // -------------------------------------------------------------------------
+  if (isWelcomeOpen) {
+    return createPortal(
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 space-y-5 animate-scale-up">
+          <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6" />
+          </div>
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, skip]);
+          <div className="text-center space-y-1.5">
+            <h2 className="text-lg font-bold text-gray-900">Welcome to RenewalDesk!</h2>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Take the 5-minute interactive tutorial to see how easy it is to add customers, send 1-click WhatsApp reminders, and track bookings.
+            </p>
+          </div>
 
-  if (!mounted || !isActive || !currentStepConfig || !currentLessonConfig) {
+          <div className="space-y-2 pt-2">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={startFromWelcome}
+              className="w-full text-sm font-semibold justify-center py-3 min-h-[44px]"
+            >
+              Take 5-Minute Tutorial (Recommended)
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={dismissWelcome}
+              className="w-full text-xs text-gray-500 hover:text-gray-700 min-h-[36px]"
+            >
+              Skip, I&apos;ll explore myself
+            </Button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. EXIT CONFIRMATION MODAL
+  // -------------------------------------------------------------------------
+  if (isExitModalOpen) {
+    return createPortal(
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 space-y-4 animate-scale-up">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+
+          <div className="text-center space-y-1">
+            <h3 className="text-base font-bold text-gray-900">Leave the tutorial?</h3>
+            <p className="text-xs text-gray-600">
+              You can restart or resume it anytime in <strong>Settings &gt; Help &amp; Tutorial</strong>.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={cancelExit}
+              className="flex-1 text-xs min-h-[44px]"
+            >
+              Continue Tutorial
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={confirmExit}
+              className="flex-1 text-xs bg-red-600 hover:bg-red-700 min-h-[44px]"
+            >
+              Exit Tutorial
+            </Button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  if (!isActive || !currentLessonConfig || !currentStepConfig) {
     return null;
   }
 
-  const isFirstStep = state.currentStep === 0;
+  // Calculate position coordinates
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
 
-  // Compute collision-free positioning
-  const positionResult: CoachPositionResult = computeCoachPosition({
+  const pos: CoachPositionResult = computeCoachPosition({
     targetRect,
     modalRect,
-    coachSize: {
-      width: isMobile ? window.innerWidth - 24 : Math.min(coachDimensions.width || 380, 380),
-      height: coachDimensions.height || 220,
-    },
+    coachSize: coachDimensions,
     viewport: {
-      width: typeof window !== 'undefined' ? window.innerWidth : 1440,
-      height: typeof window !== 'undefined' ? window.innerHeight : 900,
+      width: viewportWidth,
+      height: viewportHeight,
       isKeyboardOpen,
     },
     preferredPlacement: currentStepConfig.placement || 'bottom',
   });
 
-  const cardStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: `${positionResult.top}px`,
-    left: `${positionResult.left}px`,
-    zIndex: 9999,
-  };
+  const isFirstStep = state.currentLesson === 1 && state.currentStep === 0;
+  const isLastLesson = state.currentLesson === 8;
+  const isFinishStep = isLastLesson && state.currentStep === currentLessonConfig.steps.length - 1;
 
-  const coachContent = (
-    <>
-      {/* Global CSS for spotlight ring */}
-      <style jsx global>{`
-        .tutorial-target-highlight {
-          position: relative;
-          z-index: 60 !important;
-          outline: 3px solid #2563eb !important;
-          outline-offset: 3px !important;
-          box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.25) !important;
-          border-radius: 12px !important;
-          transition: all 0.2s ease-in-out !important;
+  // Cutout hole coordinates
+  const hole = targetRect
+    ? {
+        x: Math.max(0, targetRect.left - 6),
+        y: Math.max(0, targetRect.top - 6),
+        width: targetRect.width + 12,
+        height: targetRect.height + 12,
+      }
+    : null;
+
+  return createPortal(
+    <div id="tutorial-portal-root" className="tutorial-system-root">
+      <style>{`
+        [data-tutorial-active-target="true"] {
           pointer-events: auto !important;
           cursor: pointer !important;
+          position: relative;
+          z-index: 9997 !important;
         }
       `}</style>
+      {/* ------------------------------------------------------------------- */}
+      {/* SVG SPOTLIGHT OVERLAY WITH CUTOUT HOLE (Focus Lock, Never Trapped)   */}
+      {/* ------------------------------------------------------------------- */}
+      <svg
+        className="fixed inset-0 w-full h-full pointer-events-auto"
+        style={{ zIndex: 9995 }}
+        onClick={triggerOutsideClickShake}
+        aria-hidden="true"
+      >
+        <defs>
+          <mask id="tutorial-spotlight-mask">
+            {/* White covers entire screen */}
+            <rect width="100%" height="100%" fill="white" />
+            {/* Black hole cuts out the target */}
+            {hole && (
+              <rect
+                x={hole.x}
+                y={hole.y}
+                width={hole.width}
+                height={hole.height}
+                rx="12"
+                ry="12"
+                fill="black"
+              />
+            )}
+          </mask>
+        </defs>
+        {/* Dimmed backdrop with cutout hole */}
+        <rect
+          width="100%"
+          height="100%"
+          fill="rgba(15, 23, 42, 0.60)"
+          mask="url(#tutorial-spotlight-mask)"
+        />
+      </svg>
 
-      {/* Dim backdrop scrim:
-          - When target is inside a modal, DO NOT render the scrim so the modal
-            and its existing backdrop remain completely clear and unblurred.
-          - When target is on regular page, lightly dim without heavy blur. */}
-      {!isTargetInModal && (
+      {/* Target focus ring overlay */}
+      {hole && (
         <div
-          className="fixed inset-0 z-40 pointer-events-none bg-slate-900/15 transition-opacity duration-300"
-          aria-hidden="true"
+          className="fixed pointer-events-none rounded-xl ring-2 ring-blue-500/80 shadow-lg animate-pulse"
+          style={{
+            zIndex: 9996,
+            left: `${hole.x}px`,
+            top: `${hole.y}px`,
+            width: `${hole.width}px`,
+            height: `${hole.height}px`,
+          }}
         />
       )}
 
-      {/* The Coach Card */}
+      {/* ------------------------------------------------------------------- */}
+      {/* COACH CARD (Always on top, collision-free, keyboard-adaptive)       */}
+      {/* ------------------------------------------------------------------- */}
       <div
         ref={coachRef}
-        role="dialog"
-        aria-live="polite"
-        aria-label="Tutorial Guide"
-        style={cardStyle}
-        data-tutorial-coach="card"
-        data-placement={positionResult.placement}
-        className={`bg-white border border-blue-200/90 shadow-2xl rounded-2xl overflow-hidden transition-all duration-200 ${
-          isMobile ? 'w-[calc(100vw-24px)] max-w-lg' : 'w-[380px] max-w-[90vw]'
+        data-tutorial="coach-card" data-tutorial-coach="card"
+        className={`fixed bg-white rounded-2xl shadow-2xl border border-gray-200/90 text-gray-900 overflow-hidden transition-all duration-200 ${
+          isShaking ? 'animate-shake ring-2 ring-amber-400' : ''
         }`}
+        style={
+          isMobile
+            ? pos.placement === 'bottom-sheet'
+              ? {
+                  zIndex: 9999,
+                  bottom: '12px',
+                  left: '12px',
+                  right: '12px',
+                  maxWidth: 'calc(100vw - 24px)',
+                }
+              : {
+                  zIndex: 9999,
+                  top: `${pos.top}px`,
+                  left: '12px',
+                  right: '12px',
+                  maxWidth: 'calc(100vw - 24px)',
+                }
+            : {
+                zIndex: 9999,
+                top: `${pos.top}px`,
+                left: `${pos.left}px`,
+                width: `${coachDimensions.width}px`,
+                maxWidth: 'calc(100vw - 24px)',
+              }
+        }
       >
-        {/* Header: Progress, Title & Skip button */}
-        <div className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between gap-2">
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/70 border-b border-blue-100/70">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="p-1 rounded-md bg-white/20 text-white">
-              <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="text-[11px] font-bold text-blue-900 truncate">
+              Lesson {state.currentLesson} of {TUTORIAL_LESSONS.length} &middot; Step{' '}
+              {state.currentStep + 1} of {currentLessonConfig.steps.length}
             </span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-100">
-                Lesson {state.currentLesson} of 6 · Step {state.currentStep + 1} of{' '}
-                {currentStepConfig.totalStepsInLesson}
-              </p>
-              <p className="text-xs font-bold truncate leading-tight">
-                {currentLessonConfig.title}
-              </p>
-            </div>
           </div>
 
           <button
             type="button"
-            onClick={skip}
-            className="text-[11px] font-medium text-white/80 hover:text-white px-2 py-1 rounded-lg hover:bg-white/15 transition-colors shrink-0"
-            title="Skip tutorial (Esc)"
+            onClick={promptExit}
+            className="p-1 -mr-1 text-gray-400 hover:text-gray-700 hover:bg-blue-100/50 rounded-lg transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
+            title="Exit tutorial"
+            aria-label="Exit tutorial"
           >
-            Skip tutorial
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="p-4 space-y-3">
+        {/* Shake / Focus Lock Warning Banner */}
+        {shakeMessage && (
+          <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-[11px] font-semibold flex items-center gap-1.5 animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>{shakeMessage}</span>
+          </div>
+        )}
+
+        {/* Body Content */}
+        <div className="p-4 space-y-2.5">
           <div className="space-y-1">
-            <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-              <span>{currentStepConfig.stepTitle}</span>
-            </h4>
-            <p className="text-xs font-semibold text-blue-900 leading-snug">
+            <h3 className="text-sm font-bold text-gray-900 leading-snug">
+              {currentStepConfig.stepTitle}
+            </h3>
+            <p className="text-xs text-gray-700 leading-relaxed font-medium">
               {currentStepConfig.instruction}
             </p>
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              {targetMissing && currentStepConfig.missingExplanation
-                ? currentStepConfig.missingExplanation
-                : currentStepConfig.explanation}
+          </div>
+
+          {currentStepConfig.explanation && !isKeyboardOpen && (
+            <p className="text-[11px] text-gray-500 leading-relaxed bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+              {currentStepConfig.explanation}
             </p>
-          </div>
+          )}
 
-          {/* Optional Example Chip */}
           {currentStepConfig.example && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-100 text-[11px] text-blue-700">
-              <span className="font-semibold text-blue-900">Example:</span>
-              <span className="font-mono">{currentStepConfig.example}</span>
+            <div className="text-[11px] bg-blue-50/50 border border-blue-100 rounded-lg px-2.5 py-1.5 text-blue-800 font-mono">
+              <span className="font-semibold font-sans text-blue-900">Example: </span>
+              {currentStepConfig.example}
             </div>
           )}
 
-          {/* Target Missing Notice */}
           {targetMissing && (
-            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                Target not found on this view. You can tap Continue below to proceed without getting stuck.
-              </span>
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Target element not found
+              </p>
+              <p className="text-[10px] leading-relaxed">
+                {currentStepConfig.missingExplanation ||
+                  'The expected element is not visible on this screen. Tap "Skip this step" to proceed.'}
+              </p>
             </div>
           )}
+        </div>
 
-          {/* Action Row */}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-            <div>
-              {!isFirstStep && (
-                <button
-                  type="button"
-                  onClick={back}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
-                </button>
-              )}
-            </div>
+        {/* Footer controls: Back, Skip this step, Primary Action */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50/80 border-t border-gray-100">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={back}
+              disabled={isFirstStep}
+              leftIcon={<ChevronLeft className="w-3.5 h-3.5" />}
+              className="text-xs min-h-[36px] sm:min-h-[32px] px-2.5"
+            >
+              Back
+            </Button>
 
-            <div className="flex items-center gap-2">
-              {currentStepConfig.secondaryButtonLabel && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={advance}
-                  className="text-xs h-8 px-2.5"
-                >
-                  {currentStepConfig.secondaryButtonLabel}
-                </Button>
-              )}
-
-              {/* Show explicit advance button if buttonLabel is provided or if target is missing */}
-              {(currentStepConfig.buttonLabel || targetMissing) && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={advance}
-                  rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
-                  className="text-xs h-8 px-3"
-                >
-                  {currentStepConfig.buttonLabel || 'Continue'}
-                </Button>
-              )}
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={skipStep}
+              className="text-xs text-gray-600 hover:text-gray-900 min-h-[36px] sm:min-h-[32px] px-2"
+            >
+              Skip
+            </Button>
           </div>
+
+          {isFinishStep ? (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => complete(false)}
+                className="text-xs text-red-600 border-red-200 hover:bg-red-50 min-h-[36px] sm:min-h-[32px]"
+              >
+                Delete Practice
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => complete(true)}
+                className="text-xs min-h-[36px] sm:min-h-[32px]"
+              >
+                Keep &amp; Finish
+              </Button>
+            </div>
+          ) : (
+            currentStepConfig.buttonLabel && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={skipStep}
+                rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+                className="text-xs min-h-[36px] sm:min-h-[32px]"
+              >
+                {currentStepConfig.buttonLabel}
+              </Button>
+            )
+          )}
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   );
-
-  return createPortal(coachContent, document.body);
 }

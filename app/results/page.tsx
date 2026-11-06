@@ -36,8 +36,8 @@ export default function ResultsPage() {
 
   const isFinishStep =
     tutorialState.isActive &&
-    tutorialState.currentLesson === 6 &&
-    tutorialState.currentStep === 1;
+    tutorialState.currentLesson === 8 &&
+    tutorialState.currentStep === 3;
 
   const handleKeepPracticeCustomer = () => {
     completeTutorial();
@@ -151,9 +151,9 @@ export default function ResultsPage() {
         </div>
 
         {/* Hero Revenue & Pipeline Cards */}
-        <div data-tutorial="results-funnel" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Confirmed Recovered Revenue */}
-          <div className="lg:col-span-2 bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden flex flex-col justify-between">
+          <div data-tutorial="results-funnel" className="lg:col-span-2 bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden flex flex-col justify-between">
             <div className="relative z-10 space-y-3">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />
@@ -443,7 +443,7 @@ export default function ResultsPage() {
         description="You have mastered the complete RenewalDesk workflow: Remember -> Remind -> Book -> Repeat."
         size="md"
       >
-        <div data-tutorial="completion-modal" className="py-2 space-y-4">
+        <div data-tutorial="tutorial-finish-card" data-modal="completion-modal" className="py-2 space-y-4">
           <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200/80 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs">

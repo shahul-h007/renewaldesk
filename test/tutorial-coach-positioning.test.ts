@@ -430,7 +430,8 @@ test('RenewalDesk Tutorial Coach Card Positioning & Visibility Audit', async (t)
     const coachSource = fs.readFileSync(path.join(__dirname, '../components/TutorialCoach.tsx'), 'utf8');
     assert.ok(coachSource.includes('createPortal('), 'TutorialCoach must use createPortal to mount on document.body');
     assert.ok(coachSource.includes('zIndex: 9999'), 'TutorialCoach must have zIndex: 9999 inline style');
-    assert.ok(coachSource.includes('!isTargetInModal'), 'TutorialCoach must omit tutorial scrim when target is in modal');
+    assert.ok(coachSource.includes('targetModal') || coachSource.includes('isTargetInModal'), 'TutorialCoach must detect when target is inside modal');
+    assert.ok(coachSource.includes('9995'), 'TutorialCoach overlay scrim uses z-index 9995');
 
     // 2. Verify Modal.tsx does not use heavy blur
     const modalSource = fs.readFileSync(path.join(__dirname, '../components/ui/Modal.tsx'), 'utf8');

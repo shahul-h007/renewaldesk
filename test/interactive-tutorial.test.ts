@@ -25,15 +25,17 @@ import {
 
 test('RenewalDesk Interactive Tutorial Engine Test Suite', async (t) => {
   await t.test('--- Suite 1: Tutorial Content & Lesson Structure Integrity ---', () => {
-    assert.strictEqual(TUTORIAL_LESSONS.length, 6, 'Tutorial must contain exactly 6 canonical lessons');
+    assert.strictEqual(TUTORIAL_LESSONS.length, 8, 'Tutorial must contain exactly 8 canonical lessons');
 
-    const expectedTitles = [
+        const expectedTitles = [
       'Add your first customer',
-      'Find your customer in Today',
+      'Today queue',
       'Send a WhatsApp reminder',
-      'Track the answer (statuses)',
-      'Create your own message template',
-      'See your results, finish',
+      'Track replies & bookings',
+      'Message templates',
+      'Services & recurrence',
+      'Customer import',
+      'Results, settings & finish',
     ];
 
     const expectedRoutes = [
@@ -42,6 +44,8 @@ test('RenewalDesk Interactive Tutorial Engine Test Suite', async (t) => {
       '/dashboard',
       '/dashboard',
       '/templates',
+      '/services',
+      '/import',
       '/results',
     ];
 
@@ -141,7 +145,7 @@ test('RenewalDesk Interactive Tutorial Engine Test Suite', async (t) => {
     const completed = completeTutorial(bizA);
     assert.strictEqual(completed.isCompleted, true, 'Marked completed');
     assert.strictEqual(completed.isActive, false, 'Inactive after completion');
-    assert.strictEqual(completed.completedLessons.length, 6, 'All 6 lessons marked completed');
+    assert.strictEqual(completed.completedLessons.length, 8, 'All 8 lessons marked completed');
 
     console.log('  ✔ Tutorial state lifecycle, step advancing, lesson transition, and tenant isolation verified');
   });

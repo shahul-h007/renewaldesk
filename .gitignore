@@ -50,3 +50,5 @@ coverage/
 supabase/.temp/
 brag-output/
 .vercel
+
+qa-screenshots/

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { useTutorial } from '@/components/TutorialContext';
 import {
   Wrench,
   Plus,
@@ -30,6 +31,10 @@ export default function ServicesPage() {
   const isCloudLoading = isConfigured && (isAuthLoading || !isLoaded);
 
   const [showModal, setShowModal] = useState(false);
+  const { isServiceModalOpen, setIsServiceModalOpen } = useTutorial();
+  React.useEffect(() => {
+    if (isServiceModalOpen) setShowModal(true);
+  }, [isServiceModalOpen]);
   const [editingItem, setEditingItem] = useState<ServiceCatalogItem | null>(null);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
@@ -81,6 +86,7 @@ export default function ServicesPage() {
       headerActions={
         <Button
           variant="primary"
+          data-tutorial="add-service-btn"
           onClick={handleOpenAdd}
           leftIcon={<Plus className="w-4 h-4" />}
         >
@@ -143,6 +149,7 @@ export default function ServicesPage() {
                 size="sm"
                 onClick={handleOpenAdd}
                 className="sm:hidden shrink-0"
+                data-tutorial="add-service-btn"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
               >
                 Add
@@ -154,7 +161,7 @@ export default function ServicesPage() {
         {/* Catalog Cards Grid */}
         {filteredCatalog.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCatalog.map((item) => {
+            {filteredCatalog.map((item, idx) => {
               const customerCount = new Set(
                 services
                   .filter((s) => s.serviceName.toLowerCase() === item.name.toLowerCase())
@@ -165,6 +172,7 @@ export default function ServicesPage() {
               return (
                 <Card
                   key={item.id}
+                  data-tutorial={idx === 0 ? "service-item" : undefined}
                   className={`p-5 space-y-4 flex flex-col justify-between ${
                     isActive
                       ? 'hover:border-blue-300 transition-all'
@@ -232,6 +240,7 @@ export default function ServicesPage() {
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
+                        data-tutorial={idx === 0 ? "toggle-service-btn" : undefined}
                         onClick={() => {
                           toggleServiceTypeStatus(item.id);
                           toast.success(`"${item.name}" ${item.isActive ? 'deactivated' : 'activated'}.`);

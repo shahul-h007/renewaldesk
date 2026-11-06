@@ -204,7 +204,7 @@ export default function SettingsPage() {
         {/* ============================================================== */}
         {activeTab === 'PROFILE' && (
           <div className="space-y-6">
-            <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-8 space-y-6 shadow-2xs">
+            <form data-tutorial="settings-profile-tab" onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-8 space-y-6 shadow-2xs">
             <div>
               <h2 className="text-base font-bold text-gray-900">Business Profile</h2>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -440,7 +440,7 @@ export default function SettingsPage() {
         {/* ============================================================== */}
         {activeTab === 'BILLING' && (
           <div className="space-y-4">
-            <Card>
+            <Card data-tutorial="settings-billing-tab">
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">

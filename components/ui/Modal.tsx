@@ -15,6 +15,7 @@ export interface ModalProps {
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   showCloseButton?: boolean;
+  dataModal?: string;
 }
 
 export function Modal({
@@ -28,6 +29,7 @@ export function Modal({
   maxWidth,
   size,
   showCloseButton = true,
+  dataModal,
 }: ModalProps) {
   const effectiveMaxWidth = size || maxWidth || 'lg';
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,7 @@ export function Modal({
       {/* Modal / BottomSheet Container */}
       <div
         ref={dialogRef}
+        data-modal={dataModal}
         className={cn(
           'w-full bg-white shadow-2xl flex flex-col overflow-hidden',
           // Mobile BottomSheet styles

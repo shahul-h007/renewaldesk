@@ -245,21 +245,23 @@ export default function MyNewFeaturePage() {
 - If the page is a top-level hub: add to `primaryNavItems` in `components/Sidebar.tsx` and `components/MobileNav.tsx`.
 - If the page is a configuration tool: place it inside the Settings hub (`/settings`) or secondary tools menu. Keep mobile navigation to the canonical 4 items (Today, Customers, Results, Settings).
 
-### Step 3: Add to Guided Tour (if part of onboarding)
-1. In `lib/tour-config.ts`, append a step to `TOUR_STEPS`:
+### Step 3: Add to Interactive Tutorial (if part of onboarding)
+1. In `lib/tutorial-content.ts`, declare the step in `TUTORIAL_LESSONS`:
 ```ts
 {
-  id: 'tour-step-my-feature',
-  stepNumber: 6,
-  title: 'My Feature Name',
-  description: 'Explain what this feature does for the shop owner.',
-  route: '/my-feature',
-  targetSelector: '[data-tour="tour-my-feature"]',
+  id: 'l8-s1-my-feature',
+  lessonNumber: 8,
+  stepNumber: 1,
+  totalStepsInLesson: 3,
+  lessonTitle: 'My Feature',
+  stepTitle: 'My Feature Name',
+  instruction: 'Explain what this feature does for the shop owner.',
+  explanation: 'Why it matters for recurring business.',
+  targetSelector: '[data-tutorial="my-feature-target"]',
   placement: 'bottom',
-  missingTargetExplanation: 'This button appears once you complete previous steps.',
 }
 ```
-2. Attach `data-tour="tour-my-feature"` to the corresponding DOM element in your component.
+2. Attach `data-tutorial="my-feature-target"` to the corresponding DOM element in your component.
 
 ---
 

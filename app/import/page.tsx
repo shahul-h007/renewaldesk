@@ -305,7 +305,7 @@ export default function ImportPage() {
     >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Wizard Progress Bar */}
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/90 shadow-xs">
+        <div data-tutorial="import-stepper" className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/90 shadow-xs">
           <div className="grid grid-cols-4 gap-2 sm:gap-4 relative">
             {stepsList.map((s) => {
               const isPassed = step > s.num;
@@ -381,7 +381,7 @@ export default function ImportPage() {
               </div>
 
               {/* Dropzone */}
-              <label className="block max-w-xl mx-auto border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-2xl p-6 sm:p-10 cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/30 group">
+              <label data-tutorial="import-dropzone" className="block max-w-xl mx-auto border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-2xl p-6 sm:p-10 cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/30 group">
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -409,6 +409,7 @@ export default function ImportPage() {
                 <button
                   type="button"
                   onClick={handleDownloadSample}
+                  data-tutorial="download-sample-btn"
                   className="text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 min-h-[36px]"
                 >
                   <Download className="w-3.5 h-3.5 text-gray-500" />

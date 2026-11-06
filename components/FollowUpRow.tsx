@@ -99,6 +99,10 @@ export function FollowUpRow({
         updateFollowUpStatus(service.id, newStatus);
       }
 
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4) {
+        advanceTutorial();
+      }
+
       const statusLabels: Record<FollowUpStatus, string> = {
         NOT_CONTACTED: 'Not Contacted',
         CONTACTED: 'Contacted',
@@ -116,7 +120,7 @@ export function FollowUpRow({
             if (onUpdateStatus) onUpdateStatus(previousStatus);
             else updateFollowUpStatus(service.id, previousStatus);
 
-            if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 1) {
+            if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4) {
               advanceTutorial();
             }
           },
@@ -131,17 +135,20 @@ export function FollowUpRow({
 
   const handlePrimaryAction = () => {
     if (status === 'NOT_CONTACTED' || !status) {
-      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 3 && tutorialState.currentStep === 0) {
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 3) {
         advanceTutorial();
       }
       if (onOpenWhatsApp) onOpenWhatsApp();
       else setShowWhatsAppModal(true);
     } else if (status === 'CONTACTED' || status === 'REPLIED' || status === 'NO_RESPONSE') {
-      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 3) {
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4) {
         advanceTutorial();
       }
       handleStatusChange('BOOKED');
     } else if (status === 'BOOKED') {
+      if (isPracticeCustomer && tutorialState.isActive && tutorialState.currentLesson === 4) {
+        advanceTutorial();
+      }
       if (onOpenComplete) onOpenComplete();
       else setShowCompleteModal(true);
     } else if (status === 'COMPLETED') {
@@ -474,6 +481,7 @@ export function FollowUpRow({
                   <button
                     type="button"
                     onClick={() => handleStatusChange('REPLIED')}
+                    data-tutorial={isPracticeCustomer ? 'menu-replied' : undefined}
                     className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center justify-between"
                   >
                     <span>Customer Replied</span>
@@ -499,6 +507,7 @@ export function FollowUpRow({
                   <button
                     type="button"
                     onClick={() => handleStatusChange('NO_RESPONSE')}
+                    data-tutorial={isPracticeCustomer ? 'menu-no-response' : undefined}
                     className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-500"
                   >
                     No Response
@@ -506,6 +515,7 @@ export function FollowUpRow({
                   <button
                     type="button"
                     onClick={() => handleStatusChange('NOT_INTERESTED')}
+                    data-tutorial={isPracticeCustomer ? 'menu-not-interested' : undefined}
                     className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-500"
                   >
                     Not Interested
@@ -613,6 +623,7 @@ export function FollowUpRow({
                 <button
                   type="button"
                   onClick={() => handleStatusChange('REPLIED')}
+                  data-tutorial={isPracticeCustomer ? 'menu-replied' : undefined}
                   className={`p-2.5 rounded-xl border text-xs font-medium min-h-[44px] flex items-center justify-center ${
                     status === 'REPLIED' ? 'bg-purple-50 border-purple-400 font-bold text-purple-800' : 'border-gray-200 text-gray-700'
                   }`}
@@ -627,6 +638,26 @@ export function FollowUpRow({
                   }`}
                 >
                   Booked
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStatusChange('NO_RESPONSE')}
+                  data-tutorial={isPracticeCustomer ? 'menu-no-response' : undefined}
+                  className={`p-2.5 rounded-xl border text-xs font-medium min-h-[44px] flex items-center justify-center ${
+                    status === 'NO_RESPONSE' ? 'bg-amber-50 border-amber-400 font-bold text-amber-800' : 'border-gray-200 text-gray-700'
+                  }`}
+                >
+                  No Response
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStatusChange('NOT_INTERESTED')}
+                  data-tutorial={isPracticeCustomer ? 'menu-not-interested' : undefined}
+                  className={`p-2.5 rounded-xl border text-xs font-medium min-h-[44px] flex items-center justify-center ${
+                    status === 'NOT_INTERESTED' ? 'bg-gray-100 border-gray-400 font-bold text-gray-900' : 'border-gray-200 text-gray-700'
+                  }`}
+                >
+                  Not Interested
                 </button>
               </div>
               <button

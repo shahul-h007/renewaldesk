@@ -1,20 +1,26 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useRenewalDesk } from '@/lib/store';
 import {
   TutorialState,
+  TutorialStepContext,
+  TutorialStepDef,
   getTutorialState,
+  saveTutorialState,
   startTutorial,
   skipTutorial,
+  skipTutorialStep,
   resumeTutorial,
   resetTutorial,
   advanceTutorialStep,
   previousTutorialStep,
   setPracticeCustomerInState,
-  completeTutorial,
-  INITIAL_TUTORIAL_STATE,
+  completeTutorial as completeEngineTutorial,
+  markTutorialOffered,
+  getStepDef,
+  TUTORIAL_STEP_DEFS,
 } from '@/lib/tutorial-engine';
 import {
   TUTORIAL_LESSONS,
@@ -29,15 +35,46 @@ interface TutorialContextValue {
   isActive: boolean;
   currentLessonConfig?: TutorialLessonContent;
   currentStepConfig?: TutorialStepContent;
+  currentStepDef?: TutorialStepDef;
+  
+  // Welcome Card Modal (Start / Stop)
+  isWelcomeOpen: boolean;
+  dismissWelcome: () => void;
+  startFromWelcome: () => void;
+
+  // Exit Confirmation Modal
+  isExitModalOpen: boolean;
+  promptExit: () => void;
+  confirmExit: () => void;
+  cancelExit: () => void;
+
+  // Focus Lock Shake Warning
+  isShaking: boolean;
+  shakeMessage: string | null;
+  triggerOutsideClickShake: () => void;
+
+  // Modal Sync Flags for Self-Healing
+  isAddCustomerModalOpen: boolean;
+  setIsAddCustomerModalOpen: (open: boolean) => void;
   isAddCustomerModalRequested: boolean;
-  setIsAddCustomerModalRequested: (requested: boolean) => void;
+  setIsAddCustomerModalRequested: (open: boolean) => void;
+  isWhatsAppModalOpen: boolean;
+  setIsWhatsAppModalOpen: (open: boolean) => void;
+  isCompleteModalOpen: boolean;
+  setIsCompleteModalOpen: (open: boolean) => void;
+  isCustomTemplateOpen: boolean;
+  setIsCustomTemplateOpen: (open: boolean) => void;
+  isServiceModalOpen: boolean;
+  setIsServiceModalOpen: (open: boolean) => void;
+
+  // Actions
   start: () => void;
-  skip: () => void;
+  skipStep: () => void;
   advance: () => void;
   back: () => void;
   resume: () => void;
   redo: () => void;
-  complete: () => void;
+  complete: (keepPracticeCustomer?: boolean) => Promise<void>;
   setPracticeCustomer: (customerId: string, serviceId?: string) => void;
 }
 
@@ -46,16 +83,40 @@ const TutorialContext = createContext<TutorialContextValue | null>(null);
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { business } = useRenewalDesk();
-  const businessId = business?.id;
+  const store = useRenewalDesk();
+  const businessId = store.business?.id;
 
   const [state, setState] = useState<TutorialState>(() => getTutorialState(businessId));
-  const [isAddCustomerModalRequested, setIsAddCustomerModalRequested] = useState<boolean>(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [shakeMessage, setShakeMessage] = useState<string | null>(null);
+
+  // Modal synchronizers
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isCustomTemplateOpen, setIsCustomTemplateOpen] = useState(false);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+
+  const shakeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync state whenever businessId changes
   useEffect(() => {
-    setState(getTutorialState(businessId));
+    const s = getTutorialState(businessId);
+    setState(s);
   }, [businessId]);
+
+  // Check once-only auto-offer welcome card on first dashboard load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const s = getTutorialState(businessId);
+    if (!s.hasBeenOffered && !s.hasStarted && !s.isCompleted && !s.isSkipped && pathname === '/dashboard') {
+      setIsWelcomeOpen(true);
+      const next = markTutorialOffered(businessId);
+      setState(next);
+    }
+  }, [businessId, pathname]);
 
   const currentLessonConfig = useMemo(() => {
     return getLessonById(state.currentLesson);
@@ -65,67 +126,158 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     return getStepContent(state.currentLesson, state.currentStep);
   }, [state.currentLesson, state.currentStep]);
 
-  // Navigate to the lesson's target route if tutorial is active
-  useEffect(() => {
-    if (!state.isActive || !currentLessonConfig) return;
-    if (currentLessonConfig.route && pathname !== currentLessonConfig.route) {
-      router.push(currentLessonConfig.route);
-    }
-  }, [state.isActive, currentLessonConfig, pathname, router]);
+  const currentStepDef = useMemo(() => {
+    return getStepDef(state.currentLesson, state.currentStep);
+  }, [state.currentLesson, state.currentStep]);
 
-  // If in Lesson 1, request AddCustomerModal to be open
+  // Construct context for step engine
+  const stepContext: TutorialStepContext = useMemo(() => ({
+    state,
+    pathname,
+    navigateTo: (route: string) => {
+      if (pathname !== route) router.push(route);
+    },
+    modals: {
+      isAddCustomerOpen: isAddCustomerModalOpen,
+      setAddCustomerOpen: setIsAddCustomerModalOpen,
+      isWhatsAppOpen: isWhatsAppModalOpen,
+      setWhatsAppOpen: setIsWhatsAppModalOpen,
+      isCompleteOpen: isCompleteModalOpen,
+      setCompleteOpen: setIsCompleteModalOpen,
+      isCustomTemplateOpen,
+      setCustomTemplateOpen: setIsCustomTemplateOpen,
+      isServiceModalOpen,
+      setServiceModalOpen: setIsServiceModalOpen,
+    },
+    store: {
+      customers: store.customers || [],
+      services: store.services || [],
+      templates: store.templates || [],
+      catalog: store.catalog || [],
+      addCustomer: store.addCustomer,
+      hardDeleteCustomer: store.hardDeleteCustomer,
+      deleteCustomer: store.deleteCustomer,
+      updateFollowUpStatus: store.updateFollowUpStatus,
+    },
+  }), [
+    state,
+    pathname,
+    router,
+    isAddCustomerModalOpen,
+    isWhatsAppModalOpen,
+    isCompleteModalOpen,
+    isCustomTemplateOpen,
+    isServiceModalOpen,
+    store,
+  ]);
+
+  // Self-healing: Run ensure() when step or route or modal state changes
   useEffect(() => {
-    if (state.isActive && state.currentLesson === 1 && state.currentStep < 7) {
-      setIsAddCustomerModalRequested(true);
+    if (!state.isActive || !currentStepDef) return;
+
+    // 1. Check if route matches
+    if (currentStepDef.route && pathname !== currentStepDef.route) {
+      router.push(currentStepDef.route);
+      return;
     }
-  }, [state.isActive, state.currentLesson, state.currentStep]);
+
+    // 2. Run step ensure
+    if (currentStepDef.ensure) {
+      currentStepDef.ensure(stepContext);
+    }
+  }, [state.isActive, state.currentLesson, state.currentStep, currentStepDef, pathname, router, stepContext]);
+
+  // Check completeWhen automatically
+  useEffect(() => {
+    if (!state.isActive || !currentStepDef || !currentStepDef.completeWhen) return;
+    try {
+      if (currentStepDef.completeWhen(stepContext)) {
+        // Auto-advance to next step
+        const next = advanceTutorialStep(businessId);
+        setState(next);
+      }
+    } catch {
+      // Ignore
+    }
+  }, [state.isActive, currentStepDef, stepContext, businessId]);
+
+  // Shake trigger for focus lock
+  const triggerOutsideClickShake = useCallback(() => {
+    setIsShaking(true);
+    setShakeMessage('Finish this step first, or skip.');
+
+    if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
+    shakeTimeoutRef.current = setTimeout(() => {
+      setIsShaking(false);
+      setTimeout(() => setShakeMessage(null), 1500);
+    }, 600);
+  }, []);
 
   const start = useCallback(() => {
     const next = startTutorial(businessId);
     setState(next);
+    setIsWelcomeOpen(false);
     if (next.currentLesson === 1) {
-      setIsAddCustomerModalRequested(true);
+      setIsAddCustomerModalOpen(true);
     }
     router.push('/dashboard');
   }, [businessId, router]);
 
-  const skip = useCallback(() => {
+  const dismissWelcome = useCallback(() => {
+    setIsWelcomeOpen(false);
     const next = skipTutorial(businessId);
     setState(next);
-    setIsAddCustomerModalRequested(false);
   }, [businessId]);
 
-  const resume = useCallback(() => {
-    const next = resumeTutorial(businessId);
-    setState(next);
-    if (next.currentLesson === 1 && next.currentStep < 7) {
-      setIsAddCustomerModalRequested(true);
-    }
-    const lesson = getLessonById(next.currentLesson);
-    if (lesson?.route) {
-      router.push(lesson.route);
-    }
-  }, [businessId, router]);
+  const startFromWelcome = useCallback(() => {
+    start();
+  }, [start]);
 
-  const redo = useCallback(() => {
-    const next = resetTutorial(businessId);
-    setState(next);
-    setIsAddCustomerModalRequested(true);
-    router.push('/dashboard');
-  }, [businessId, router]);
+  const promptExit = useCallback(() => {
+    setIsExitModalOpen(true);
+  }, []);
 
-  const advance = useCallback(() => {
-    const next = advanceTutorialStep(businessId);
+  const confirmExit = useCallback(() => {
+    setIsExitModalOpen(false);
+    const next = skipTutorial(businessId);
     setState(next);
-    if (next.currentLesson !== 1) {
-      setIsAddCustomerModalRequested(false);
-    }
+    setIsAddCustomerModalOpen(false);
+    setIsWhatsAppModalOpen(false);
+    setIsCompleteModalOpen(false);
+    setIsCustomTemplateOpen(false);
+    setIsServiceModalOpen(false);
+  }, [businessId]);
+
+  const cancelExit = useCallback(() => {
+    setIsExitModalOpen(false);
+  }, []);
+
+  const skipStep = useCallback(() => {
+    const next = skipTutorialStep(businessId);
+    setState(next);
   }, [businessId]);
 
   const back = useCallback(() => {
     const next = previousTutorialStep(businessId);
     setState(next);
   }, [businessId]);
+
+  const resume = useCallback(() => {
+    const next = resumeTutorial(businessId);
+    setState(next);
+    const lesson = getLessonById(next.currentLesson);
+    if (lesson?.route) router.push(lesson.route);
+    if (next.currentLesson === 1 && next.currentStep < 7) {
+      setIsAddCustomerModalOpen(true);
+    }
+  }, [businessId, router]);
+
+  const redo = useCallback(() => {
+    const next = resetTutorial(businessId);
+    setState(next);
+    setIsAddCustomerModalOpen(true);
+    router.push('/dashboard');
+  }, [businessId, router]);
 
   const setPracticeCustomer = useCallback(
     (customerId: string, serviceId?: string) => {
@@ -135,11 +287,27 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     [businessId]
   );
 
-  const complete = useCallback(() => {
-    const next = completeTutorial(businessId);
-    setState(next);
-    setIsAddCustomerModalRequested(false);
-  }, [businessId]);
+  const complete = useCallback(
+    async (keepPracticeCustomer: boolean = true) => {
+      if (!keepPracticeCustomer && state.practiceCustomerId) {
+        try {
+          if (store.hardDeleteCustomer) {
+            await store.hardDeleteCustomer(state.practiceCustomerId);
+          } else if (store.deleteCustomer) {
+            store.deleteCustomer(state.practiceCustomerId);
+          }
+        } catch (err) {
+          console.warn('Could not remove practice customer:', err);
+        }
+      }
+      const next = completeEngineTutorial(businessId);
+      setState(next);
+      setIsAddCustomerModalOpen(false);
+      setIsWhatsAppModalOpen(false);
+      setIsCompleteModalOpen(false);
+    },
+    [businessId, state.practiceCustomerId, store]
+  );
 
   const value = useMemo(
     () => ({
@@ -147,11 +315,32 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       isActive: state.isActive,
       currentLessonConfig,
       currentStepConfig,
-      isAddCustomerModalRequested,
-      setIsAddCustomerModalRequested,
+      currentStepDef,
+      isWelcomeOpen,
+      dismissWelcome,
+      startFromWelcome,
+      isExitModalOpen,
+      promptExit,
+      confirmExit,
+      cancelExit,
+      isShaking,
+      shakeMessage,
+      triggerOutsideClickShake,
+      isAddCustomerModalOpen,
+      setIsAddCustomerModalOpen,
+      isAddCustomerModalRequested: isAddCustomerModalOpen,
+      setIsAddCustomerModalRequested: setIsAddCustomerModalOpen,
+      isWhatsAppModalOpen,
+      setIsWhatsAppModalOpen,
+      isCompleteModalOpen,
+      setIsCompleteModalOpen,
+      isCustomTemplateOpen,
+      setIsCustomTemplateOpen,
+      isServiceModalOpen,
+      setIsServiceModalOpen,
       start,
-      skip,
-      advance,
+      skipStep,
+      advance: skipStep,
       back,
       resume,
       redo,
@@ -162,10 +351,25 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       state,
       currentLessonConfig,
       currentStepConfig,
-      isAddCustomerModalRequested,
+      currentStepDef,
+      isWelcomeOpen,
+      dismissWelcome,
+      startFromWelcome,
+      isExitModalOpen,
+      promptExit,
+      confirmExit,
+      cancelExit,
+      isShaking,
+      shakeMessage,
+      triggerOutsideClickShake,
+      isAddCustomerModalOpen,
+      setIsAddCustomerModalOpen,
+      isWhatsAppModalOpen,
+      isCompleteModalOpen,
+      isCustomTemplateOpen,
+      isServiceModalOpen,
       start,
-      skip,
-      advance,
+      skipStep,
       back,
       resume,
       redo,
@@ -173,6 +377,45 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       setPracticeCustomer,
     ]
   );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__rd_tutorial = {
+        getState: () => getTutorialState(businessId),
+        setState: (newState: any) => {
+          saveTutorialState(businessId, newState);
+          setState(newState);
+        },
+        advanceStep: skipStep,
+        previousStep: back,
+        skipStep,
+        start,
+        promptExit,
+        confirmExit,
+        cancelExit,
+        openAddCustomerModal: () => setIsAddCustomerModalOpen(true),
+        closeAddCustomerModal: () => setIsAddCustomerModalOpen(false),
+        openWhatsAppModal: () => setIsWhatsAppModalOpen(true),
+        closeWhatsAppModal: () => setIsWhatsAppModalOpen(false),
+        openCompleteModal: () => setIsCompleteModalOpen(true),
+        closeCompleteModal: () => setIsCompleteModalOpen(false),
+        openServiceModal: () => setIsServiceModalOpen(true),
+        closeServiceModal: () => setIsServiceModalOpen(false),
+        openCustomTemplateModal: () => setIsCustomTemplateOpen(true),
+        closeCustomTemplateModal: () => setIsCustomTemplateOpen(false),
+        triggerOutsideClickShake,
+      };
+    }
+  }, [
+    businessId,
+    skipStep,
+    back,
+    start,
+    promptExit,
+    confirmExit,
+    cancelExit,
+    triggerOutsideClickShake,
+  ]);
 
   return <TutorialContext.Provider value={value}>{children}</TutorialContext.Provider>;
 }

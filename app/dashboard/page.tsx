@@ -338,16 +338,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Action Queue Container */}
-        <div data-tour="tour-today-queue" className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
+        <div data-tutorial="today-queue" className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
           {/* Controls Bar: Segmented Tabs + Search + Template Shortcut */}
           <div className="p-3.5 sm:p-4 border-b border-gray-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Segmented Control Tabs */}
-            <Tabs
-              tabs={tabs}
-              activeTab={activeTab}
-              onChange={(id) => setActiveTab(id as TabKey)}
-              variant="pill"
-            />
+            <div data-tutorial="today-tabs">
+              <Tabs
+                tabs={tabs}
+                activeTab={activeTab}
+                onChange={(id) => setActiveTab(id as TabKey)}
+                variant="pill"
+              />
+            </div>
 
             {/* Search Input */}
             <div className="w-full md:w-72">

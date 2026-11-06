@@ -182,6 +182,7 @@ export function AddCustomerModal({ isOpen, onClose }: AddCustomerModalProps) {
       title="Add New Customer"
       description="Record customer details and schedule their recurring service cycle."
       size="lg"
+      dataModal="add-customer"
     >
       {/* Error Alert */}
       {submitError && (

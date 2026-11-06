@@ -65,7 +65,7 @@ export function CompleteServiceModal({
     } else {
       markServiceCompleted(service.id, completedDate, Number(amountCollected), intervalValue, intervalUnit);
     }
-    if (tutorialState.isActive && tutorialState.currentLesson === 4 && tutorialState.currentStep === 4) {
+    if (tutorialState.isActive && tutorialState.currentLesson === 4) {
       advanceTutorial();
     }
     toast.success(`Service completed! Next due date scheduled for ${nextDueCalculated}.`);
@@ -74,7 +74,7 @@ export function CompleteServiceModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+      <div data-modal="complete-service" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
           <div className="flex items-center gap-3">

@@ -141,7 +141,7 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
+      <div data-modal="service-modal" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -191,6 +191,7 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
             <input
               type="text"
               required
+              data-tutorial="service-name-input"
               placeholder="e.g. AC Filter Cleaning & Drainage Flush"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -390,6 +391,7 @@ export function ServiceTypeModal({ isOpen, onClose, itemToEdit }: ServiceTypeMod
               </button>
               <button
                 type="submit"
+                data-tutorial="save-service-btn"
                 className="px-5 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm flex items-center gap-1.5 transition-all"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />

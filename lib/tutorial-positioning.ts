@@ -93,7 +93,7 @@ export function computeCoachPosition({
   const gap = 14;
 
   const vpW = Math.max(320, viewport.width);
-  const vpH = Math.max(480, viewport.height);
+  const vpH = Math.max(300, viewport.height);
   const isMobile = vpW < 768;
 
   // Fallback: If no target, center coach card on screen
@@ -114,17 +114,17 @@ export function computeCoachPosition({
     const sheetWidth = vpW - 24; // 12px margin on each side
     const sheetHeight = coachSize.height;
     const sheetLeft = 12;
+    const bottomSheetTop = vpH - sheetHeight - 12;
 
     // CASE A: Virtual Keyboard is Open
     if (viewport.isKeyboardOpen) {
-      // Move to top sheet so virtual keyboard & focused input remain visible
-      let topSheetTop = 12;
-      let topSheetRect = toRect(topSheetTop, sheetLeft, sheetWidth, sheetHeight);
+      const topSheetTop = 10;
+      const topSheetRect = toRect(topSheetTop, sheetLeft, sheetWidth, sheetHeight);
 
-      // If active field is at the very top and collides with top sheet, place below it
-      if (doRectanglesOverlap(topSheetRect, targetRect, 4)) {
+      // If active field collides with top sheet, place cleanly below target
+      if (doRectanglesOverlap(topSheetRect, targetRect, 2)) {
         const belowTop = targetRect.bottom + 8;
-        if (belowTop + sheetHeight <= vpH - 12) {
+        if (belowTop + sheetHeight <= vpH - 8) {
           return { top: belowTop, left: sheetLeft, placement: 'below' };
         }
       }
@@ -133,25 +133,26 @@ export function computeCoachPosition({
     }
 
     // CASE B: Normal Mobile (Keyboard Closed)
-    // Default position: Bottom Sheet
-    const bottomSheetTop = vpH - sheetHeight - 12;
     const bottomSheetRect = toRect(bottomSheetTop, sheetLeft, sheetWidth, sheetHeight);
+    const topSheetRect = toRect(12, sheetLeft, sheetWidth, sheetHeight);
 
-    // If bottom sheet overlaps target or target is in bottom portion of screen:
-    // FLIP to Top Sheet so the target field is never covered.
-    if (doRectanglesOverlap(bottomSheetRect, targetRect, 4) || targetRect.bottom > bottomSheetTop - 6) {
-      const topSheetTop = 12;
-      const topSheetRect = toRect(topSheetTop, sheetLeft, sheetWidth, sheetHeight);
-
-      // If target is also in top portion (e.g. extremely tall element), place below target
-      if (doRectanglesOverlap(topSheetRect, targetRect, 4)) {
-        const belowTop = targetRect.bottom + 8;
-        if (belowTop + sheetHeight <= vpH - 12) {
-          return { top: belowTop, left: sheetLeft, placement: 'below' };
-        }
+    // If bottom sheet overlaps or target reaches into bottom sheet area:
+    if (doRectanglesOverlap(bottomSheetRect, targetRect, 4) || targetRect.bottom > bottomSheetTop - 4) {
+      // If top sheet doesn't overlap target, flip to top sheet!
+      if (!doRectanglesOverlap(topSheetRect, targetRect, 4)) {
+        return { top: 12, left: sheetLeft, placement: 'top-sheet' };
       }
+      // If target also touches top sheet, place cleanly below target
+      const belowTop = targetRect.bottom + 8;
+      if (belowTop + sheetHeight <= vpH - 8) {
+        return { top: belowTop, left: sheetLeft, placement: 'below' };
+      }
+      return { top: 12, left: sheetLeft, placement: 'top-sheet' };
+    }
 
-      return { top: topSheetTop, left: sheetLeft, placement: 'top-sheet' };
+    // If preferred placement is 'top' and top sheet doesn't overlap target:
+    if (preferredPlacement === 'top' && !doRectanglesOverlap(topSheetRect, targetRect, 6)) {
+      return { top: 12, left: sheetLeft, placement: 'top-sheet' };
     }
 
     return { top: bottomSheetTop, left: sheetLeft, placement: 'bottom-sheet' };
