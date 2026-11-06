@@ -38,6 +38,8 @@ import {
   RefreshCw,
   Play,
   CheckCircle2,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { BUSINESS_TYPE_OPTIONS, getCanonicalCategoryLabel } from '@/lib/catalog-presets';
 
@@ -54,7 +56,7 @@ export default function SettingsPage() {
     catalog,
     customers,
   } = useRenewalDesk();
-  const { user, isConfigured, isLoading: isAuthLoading } = useAuth();
+  const { user, isConfigured, isLoading: isAuthLoading, signOut } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
@@ -62,6 +64,10 @@ export default function SettingsPage() {
   const toast = useToast();
   const { state: tutorialState, resume: resumeTutorial, redo: redoTutorial } = useTutorial();
   const [isRedoModalOpen, setIsRedoModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState(business.name);
@@ -127,6 +133,48 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!business.name || deleteConfirmText.trim().toLowerCase() !== business.name.trim().toLowerCase()) {
+      setDeleteError(`Please type "${business.name}" exactly to confirm.`);
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      if (isDatabaseMode && business.id) {
+        const res = await fetch('/api/business/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessId: business.id,
+            businessNameConfirmation: deleteConfirmText.trim(),
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to delete workspace.');
+        }
+      }
+
+      toast.success('Workspace and all data permanently erased.');
+      setIsDeleteModalOpen(false);
+      resetDemoData();
+      if (signOut) {
+        await signOut();
+      }
+      router.push('/login?message=workspace_deleted');
+    } catch (err: any) {
+      console.error('Workspace deletion error:', err);
+      setDeleteError(err.message || 'An unexpected error occurred while deleting.');
+      toast.error(err.message || 'Failed to delete workspace.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const tabs: TabItem[] = [
     { id: 'PROFILE', label: 'Shop Profile', icon: Building2 },
     { id: 'SERVICES', label: 'Services', count: catalog.length, icon: Wrench },
@@ -155,7 +203,8 @@ export default function SettingsPage() {
         {/* TAB 1: SHOP PROFILE */}
         {/* ============================================================== */}
         {activeTab === 'PROFILE' && (
-          <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-8 space-y-6 shadow-2xs">
+          <div className="space-y-6">
+            <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200/80 p-5 sm:p-8 space-y-6 shadow-2xs">
             <div>
               <h2 className="text-base font-bold text-gray-900">Business Profile</h2>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -245,6 +294,45 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
+
+          {/* Danger Zone: Workspace Deletion & DPDP Act Data Erasure */}
+          <div className="pt-6 border-t border-red-100">
+            <Card className="border-red-200 bg-red-50/20">
+              <CardHeader>
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="w-5 h-5 shrink-0" />
+                  <CardTitle className="text-red-950 text-base">Danger Zone: Workspace Deletion &amp; Data Erasure</CardTitle>
+                </div>
+                <CardDescription className="text-red-800/80">
+                  Permanently delete this workspace and all associated customer, equipment, service, reminder, and billing records in compliance with India&apos;s Digital Personal Data Protection (DPDP) Act, 2023. This action is irreversible.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-gray-600">
+                <p>
+                  Deleting your workspace will immediately cascade and permanently erase all registered customers, assets, past service histories, custom WhatsApp templates, and billing transactions.
+                </p>
+              </CardContent>
+              <CardFooter className="bg-red-50/60 border-t border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <span className="text-xs text-red-800 font-medium">
+                  Workspace owner action. Requires exact shop name confirmation.
+                </span>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteConfirmText('');
+                    setDeleteError(null);
+                    setIsDeleteModalOpen(true);
+                  }}
+                  leftIcon={<Trash2 className="w-4 h-4" />}
+                >
+                  Delete Workspace &amp; All Data
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
         )}
 
         {/* ============================================================== */}
@@ -646,6 +734,82 @@ export default function SettingsPage() {
               }}
             >
               Restart from Lesson 1
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Delete Workspace & DPDP Act Data Erasure Confirmation */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          if (!isDeleting) {
+            setIsDeleteModalOpen(false);
+            setDeleteConfirmText('');
+            setDeleteError(null);
+          }
+        }}
+        title="Permanently Delete Workspace & All Data?"
+        icon={<Trash2 className="w-5 h-5 text-red-600" />}
+        size="md"
+      >
+        <div className="py-2 space-y-4 text-xs text-gray-600">
+          <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl space-y-1.5 text-red-900">
+            <p className="font-bold flex items-center gap-1.5 text-red-800">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              Irreversible Action (DPDP Act 2023 Compliance)
+            </p>
+            <p className="text-[11px] leading-relaxed text-red-700">
+              This will permanently purge your shop profile, <strong>{customers.length} customer records</strong>, all equipment, service histories, reminders, and custom WhatsApp message templates from our active database.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-gray-700">
+              To confirm, type your business name <span className="font-mono font-bold text-gray-900 select-all">&quot;{business.name}&quot;</span> below:
+            </label>
+            <Input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => {
+                setDeleteConfirmText(e.target.value);
+                setDeleteError(null);
+              }}
+              placeholder={business.name}
+              disabled={isDeleting}
+              className="font-mono text-xs"
+            />
+          </div>
+
+          {deleteError && (
+            <div className="p-2.5 rounded-lg bg-red-50 text-red-700 text-xs flex items-center gap-1.5 font-medium">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{deleteError}</span>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setDeleteConfirmText('');
+                setDeleteError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              isLoading={isDeleting}
+              disabled={deleteConfirmText.trim().toLowerCase() !== (business.name || '').trim().toLowerCase()}
+              onClick={handleDeleteWorkspace}
+              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+            >
+              {isDeleting ? 'Erasing Workspace...' : 'Permanently Delete Everything'}
             </Button>
           </div>
         </div>

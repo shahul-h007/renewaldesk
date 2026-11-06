@@ -133,10 +133,13 @@ export default function ImportPage() {
   const processCSVContent = (content: string, name = 'customer_data.csv') => {
     setCsvText(content);
     if (!fileName) setFileName(name);
-    const { headers: parsedHeaders, rows: parsedRows } = parseCSVText(content);
+    const { headers: parsedHeaders, rows: parsedRows, wasTruncated } = parseCSVText(content);
     if (parsedHeaders.length === 0) {
       toast.error('Could not read any column headers from CSV. Please check the file format.');
       return;
+    }
+    if (wasTruncated) {
+      toast.warning('CSV file exceeds the 1,000-row limit. Only the first 1,000 rows were loaded to protect performance.');
     }
     setHeaders(parsedHeaders);
     setRawRows(parsedRows);

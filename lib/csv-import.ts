@@ -63,6 +63,27 @@ export interface ValidateOptions {
 }
 
 /**
+ * Maximum rows allowed per CSV upload to prevent resource exhaustion and denial of service.
+ */
+export const MAX_CSV_ROWS = 1000;
+
+/**
+ * Sanitizes a cell string against CSV formula injection (CSV / Spreadsheet Injection).
+ * Any cell starting with =, +, -, @, \t, or \r is prefixed with a single quote (')
+ * to force spreadsheet programs (Excel, Google Sheets, Calc) to treat it strictly as text.
+ * Also strips unsafe control characters.
+ */
+export function sanitizeCsvCell(cell: string): string {
+  if (!cell || typeof cell !== 'string') return '';
+  // Strip control carriage returns and trailing tabs
+  const cleaned = cell.replace(/[\r]/g, '').trim();
+  if (/^[=\+\-@\t]/.test(cleaned)) {
+    return `'${cleaned}`;
+  }
+  return cleaned;
+}
+
+/**
  * Normalizes phone numbers to digits only, taking the last 10 digits.
  * e.g., '+91 98460 55441' -> '9846055441', '09846055441' -> '9846055441'
  */
@@ -73,11 +94,17 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
- * Basic robust CSV string parser handling quotes, commas, and newlines.
+ * Basic robust CSV string parser handling quotes, commas, newlines,
+ * capping at MAX_CSV_ROWS (1,000) and sanitizing cells against formula injection.
  */
-export function parseCSVText(csvContent: string): { headers: string[]; rows: Record<string, string>[] } {
+export function parseCSVText(csvContent: string): {
+  headers: string[];
+  rows: Record<string, string>[];
+  totalRowsInFile: number;
+  wasTruncated: boolean;
+} {
   const lines = csvContent.split(/\r?\n/).filter(line => line.trim().length > 0);
-  if (lines.length === 0) return { headers: [], rows: [] };
+  if (lines.length === 0) return { headers: [], rows: [], totalRowsInFile: 0, wasTruncated: false };
 
   const parseLine = (line: string): string[] => {
     const values: string[] = [];
@@ -88,21 +115,26 @@ export function parseCSVText(csvContent: string): { headers: string[]; rows: Rec
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
-        values.push(current.trim());
+        values.push(sanitizeCsvCell(current));
         current = '';
       } else {
         current += char;
       }
     }
-    values.push(current.trim());
+    values.push(sanitizeCsvCell(current));
     return values.map(v => v.replace(/^"|"$/g, ''));
   };
 
   const headers = parseLine(lines[0]);
+  const rawDataLines = lines.slice(1);
+  const totalRowsInFile = rawDataLines.length;
+  const wasTruncated = totalRowsInFile > MAX_CSV_ROWS;
+  const processLines = wasTruncated ? rawDataLines.slice(0, MAX_CSV_ROWS) : rawDataLines;
+
   const rows: Record<string, string>[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseLine(lines[i]);
+  for (let i = 0; i < processLines.length; i++) {
+    const cells = parseLine(processLines[i]);
     const rowObj: Record<string, string> = {};
     headers.forEach((h, idx) => {
       rowObj[h] = cells[idx] || '';
@@ -110,7 +142,7 @@ export function parseCSVText(csvContent: string): { headers: string[]; rows: Rec
     rows.push(rowObj);
   }
 
-  return { headers, rows };
+  return { headers, rows, totalRowsInFile, wasTruncated };
 }
 
 /**
@@ -220,7 +252,8 @@ export function validateAndMapRows(
     let isExistingCustomer = false;
     let existingCustomerName: string | undefined = undefined;
 
-    const name = (raw[mapping.nameCol] || '').trim();
+    const rawName = (raw[mapping.nameCol] || '').trim();
+    const name = sanitizeCsvCell(rawName);
     if (!name) {
       errors.push('Missing customer name');
     }
@@ -254,7 +287,7 @@ export function validateAndMapRows(
 
     // Default asset label is now category-aware (e.g. 'Water Purifier' for RO, 'Vehicle / Reg No.' for auto)
     const rawAsset = (raw[mapping.assetCol] || '').trim();
-    const assetName = rawAsset || defaultAssetLabel;
+    const assetName = sanitizeCsvCell(rawAsset || defaultAssetLabel);
     let lastServiceDate = normalizeDate(raw[mapping.lastDateCol] || '');
     let nextDueDate = normalizeDate(raw[mapping.nextDateCol] || '');
 
@@ -278,11 +311,11 @@ export function validateAndMapRows(
 
     const rawAmount = (raw[mapping.amountCol] || '1200').replace(/[^0-9.]/g, '');
     const serviceAmount = parseFloat(rawAmount) || 1200;
-    const address = (raw[mapping.addressCol] || '').trim();
-    const locality = mapping.localityCol ? (raw[mapping.localityCol] || '').trim() || undefined : undefined;
-    const city = mapping.cityCol ? (raw[mapping.cityCol] || '').trim() || undefined : undefined;
-    const pincode = mapping.pincodeCol ? (raw[mapping.pincodeCol] || '').trim() || undefined : undefined;
-    const landmark = mapping.landmarkCol ? (raw[mapping.landmarkCol] || '').trim() || undefined : undefined;
+    const address = sanitizeCsvCell((raw[mapping.addressCol] || '').trim());
+    const locality = mapping.localityCol ? sanitizeCsvCell((raw[mapping.localityCol] || '').trim()) || undefined : undefined;
+    const city = mapping.cityCol ? sanitizeCsvCell((raw[mapping.cityCol] || '').trim()) || undefined : undefined;
+    const pincode = mapping.pincodeCol ? sanitizeCsvCell((raw[mapping.pincodeCol] || '').trim()) || undefined : undefined;
+    const landmark = mapping.landmarkCol ? sanitizeCsvCell((raw[mapping.landmarkCol] || '').trim()) || undefined : undefined;
 
     const parsedRow: ParsedCSVRow = {
       rowIndex: idx + 1,

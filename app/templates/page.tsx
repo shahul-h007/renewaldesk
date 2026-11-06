@@ -142,6 +142,11 @@ export default function TemplatesPage() {
       setActionError('Template body cannot be empty.');
       return;
     }
+    if (editedText.length > 2000) {
+      setActionError('Template body cannot exceed 2,000 characters.');
+      toast.error('Template body cannot exceed 2,000 characters.');
+      return;
+    }
     if (!editedName.trim()) {
       setActionError('Template name cannot be empty.');
       return;
@@ -166,6 +171,11 @@ export default function TemplatesPage() {
   const handleCreateCustomTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTplName.trim() || !newTplText.trim()) return;
+    if (newTplText.length > 2000) {
+      setActionError('Template body cannot exceed 2,000 characters.');
+      toast.error('Template body cannot exceed 2,000 characters.');
+      return;
+    }
 
     setIsSubmittingNew(true);
     setActionError(null);
@@ -556,14 +566,15 @@ export default function TemplatesPage() {
                     <label htmlFor="template-body-input" className="block text-xs font-semibold text-gray-700">
                       Message Body
                     </label>
-                    <span className="text-[11px] text-gray-400 font-mono">
-                      {editedText.length} characters
+                    <span className={`text-[11px] font-mono ${editedText.length > 2000 ? 'text-red-600 font-bold' : editedText.length > 1800 ? 'text-amber-600' : 'text-gray-400'}`}>
+                      {editedText.length}/2,000 characters
                     </span>
                   </div>
                   <textarea
                     id="template-body-input"
                     ref={textareaRef}
                     rows={8}
+                    maxLength={2000}
                     value={editedText}
                     onChange={(e) => setEditedText(e.target.value)}
                     className="w-full max-w-full p-3.5 text-xs sm:text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none leading-relaxed font-sans min-h-[180px] box-border"
@@ -749,9 +760,17 @@ export default function TemplatesPage() {
               ))}
             </div>
 
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-semibold text-gray-700">Message Body *</span>
+              <span className={`text-[10px] font-mono ${newTplText.length > 2000 ? 'text-red-600 font-bold' : newTplText.length > 1800 ? 'text-amber-600' : 'text-gray-400'}`}>
+                {newTplText.length}/2,000 characters
+              </span>
+            </div>
+
             <textarea
               required
               rows={6}
+              maxLength={2000}
               data-tutorial="template-body"
               value={newTplText}
               onChange={(e) => setNewTplText(e.target.value)}

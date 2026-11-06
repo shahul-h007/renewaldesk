@@ -311,33 +311,54 @@ export default function PrivacyPolicyPage() {
           </div>
         </section>
 
-        {/* Section 6: Data Retention & Account Deletion */}
+        {/* Section 6: Data Retention & Account Deletion (DPDP Act 2023) */}
         <section className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
               <Trash2 className="w-4 h-4" />
             </div>
             <h2 className="text-xl font-bold text-slate-900">
-              6. Data Retention &amp; Account Deletion
+              6. Data Retention, Erasure &amp; DPDP Act Compliance
             </h2>
           </div>
 
           <p>
-            We retain your business workspace data, customer records, and service schedules for as long as your account remains active, or until you request deletion.
+            Under Section 12 of India&apos;s <strong>Digital Personal Data Protection (DPDP) Act, 2023</strong>, Data Principals (our users and their clients) maintain the statutory right to the correction, completion, updating, and irreversible erasure of their personal and business data.
           </p>
 
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
-            <h3 className="font-bold text-slate-900">How to Request Deletion:</h3>
-            <p>
-              You may request complete deletion of your account and all associated customer, equipment, and service records at any time by emailing us at{' '}
-              <a
-                href="mailto:shahulhmd.connect@gmail.com"
-                className="font-semibold text-blue-700 hover:text-blue-900 underline"
-              >
-                shahulhmd.connect@gmail.com
-              </a>
-              . Upon verification of your account ownership, we will permanently purge your workspace records from our active database.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
+              <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                Option A: Instant Self-Serve Deletion
+              </h3>
+              <p>
+                Workspace owners can immediately and permanently delete their business workspace, customer ledger, service histories, and custom message templates at any time directly in the app:
+              </p>
+              <div className="pt-1">
+                <Link
+                  href="/settings"
+                  className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800 underline"
+                >
+                  Settings → Shop Profile → Danger Zone
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-600">
+              <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                Option B: Data Protection &amp; Grievance Redressal
+              </h3>
+              <p>
+                You may also submit a written erasure or data correction request to our designated Grievance Officer at{' '}
+                <a
+                  href="mailto:shahulhmd.connect@gmail.com"
+                  className="font-semibold text-blue-700 hover:text-blue-900 underline"
+                >
+                  shahulhmd.connect@gmail.com
+                </a>
+                . All DPDP Act requests are verified and completed within 30 days of receipt.
+              </p>
+            </div>
           </div>
         </section>
 
