@@ -32,8 +32,8 @@ DROP POLICY IF EXISTS "business_subscriptions_manage_owner_manager" ON public.bu
 DROP POLICY IF EXISTS "payment_transactions_insert_owner_manager" ON public.payment_transactions;
 
 -- Revoke table-level write permissions from client roles
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.business_subscriptions FROM anon, authenticated;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.payment_transactions FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.business_subscriptions FROM anon, authenticated, PUBLIC;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.payment_transactions FROM anon, authenticated, PUBLIC;
 
 -- Ensure SELECT permission remains available for authenticated members
 GRANT SELECT ON TABLE public.business_subscriptions TO authenticated;
